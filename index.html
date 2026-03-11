@@ -494,7 +494,7 @@ Numbers only. Protein/fat/carbs/sugar/fiber in grams. Cholesterol in mg. Water i
     document.getElementById('loadingMsg').textContent = 'analyzing meal...';
 
     try {
-      const res = await fetch('https://api.anthropic.com/v1/messages', {
+      const res = await fetch('/api/analyze', {
         method:'POST',
         headers:{'Content-Type':'application/json'},
         body: JSON.stringify({
@@ -622,7 +622,7 @@ Cal ${daily.calories}, Protein ${daily.protein}g, Carbs ${daily.carbs}g, Fat ${d
 
 Write a short coaching message (2 sentences max). Be direct and specific — call out what's on track, what needs attention, or suggest a specific food to fill a gap. No emojis, no markdown. Return only the message.`;
 
-      const res = await fetch('https://api.anthropic.com/v1/messages', {
+      const res = await fetch('/api/analyze', {
         method:'POST', headers:{'Content-Type':'application/json'},
         body: JSON.stringify({ model:'claude-sonnet-4-20250514', max_tokens:100, messages:[{role:'user',content:prompt}] })
       });
