@@ -634,11 +634,17 @@ Numbers only. Protein/fat/carbs/sugar/fiber in grams. Cholesterol in mg. Water i
     document.getElementById('loadingMsg').textContent = 'searching USDA database...';
     const usdaResults = await searchUSDA(input);
     if (usdaResults.length > 0) {
-      // Use best match, scale to user's portion
-      const scaled = scaleUSDAResult(usdaResults[0], input);
-      lastSource = 'usda';
-      showResults(scaled);
-      return;
+      // Check relevance: do input keywords appear in the USDA result?
+      const inputWords = input.toLowerCase().replace(/[^a-z ]/g,'').split(/\s+/).filter(w => w.length > 2 && !['cup','ounce','the','and','with','one','two'].includes(w));
+      const resultDesc = usdaResults[0].description.toLowerCase();
+      const matchCount = inputWords.filter(w => resultDesc.includes(w)).length;
+      const relevance = inputWords.length > 0 ? matchCount / inputWords.length : 0;
+      if (relevance >= 0.3) {
+        const scaled = scaleUSDAResult(usdaResults[0], input);
+        lastSource = 'usda';
+        showResults(scaled);
+        return;
+      }
     }
 
     // Step 3: Fall back to Claude AI
