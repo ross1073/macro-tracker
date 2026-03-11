@@ -1,0 +1,666 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Macro Tracker</title>
+<link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=DM+Sans:ital,wght@0,300;0,400;0,500;0,600;1,400&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #0a0a0f;
+    --surface: #13131a;
+    --surface2: #1c1c27;
+    --border: #2a2a3a;
+    --accent: #7cffd4;
+    --warn: #ffd97d;
+    --danger: #ff6b6b;
+    --text: #e8e8f0;
+    --muted: #6b6b80;
+    --success: #4ade80;
+    --protein-color: #7eb8ff;
+    --carb-color: #ffd97d;
+    --fat-color: #ff9f7e;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'DM Sans', sans-serif;
+    min-height: 100vh;
+    padding: 20px 16px 80px;
+  }
+  .container { max-width: 620px; margin: 0 auto; }
+  header {
+    display: flex; align-items: center; justify-content: space-between;
+    margin-bottom: 20px; padding-bottom: 14px;
+    border-bottom: 1px solid var(--border);
+  }
+  .header-left h1 {
+    font-family: 'Space Mono', monospace;
+    font-size: 1rem; color: var(--accent); letter-spacing: 0.05em;
+  }
+  .header-left span { font-size: 0.72rem; color: var(--muted); font-family: 'Space Mono', monospace; }
+  .date-badge { font-family: 'Space Mono', monospace; font-size: 0.7rem; color: var(--muted); text-align: right; }
+  .coach-panel {
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: 12px; padding: 16px; margin-bottom: 20px;
+  }
+  .coach-header {
+    display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;
+  }
+  .coach-header h2 {
+    font-family: 'Space Mono', monospace; font-size: 0.75rem;
+    color: var(--accent); letter-spacing: 0.08em; text-transform: uppercase;
+  }
+  .coach-reset {
+    font-size: 0.7rem; color: var(--muted); cursor: pointer;
+    font-family: 'Space Mono', monospace; background: none; border: none; text-decoration: underline;
+  }
+  .coach-reset:hover { color: var(--text); }
+  .macro-bars { display: flex; flex-direction: column; gap: 8px; margin-bottom: 14px; }
+  .bar-row { display: flex; align-items: center; gap: 10px; }
+  .bar-label { font-size: 0.72rem; font-family: 'Space Mono', monospace; color: var(--muted); width: 70px; flex-shrink: 0; }
+  .bar-track { flex: 1; height: 6px; background: var(--surface2); border-radius: 3px; overflow: hidden; }
+  .bar-fill { height: 100%; border-radius: 3px; transition: width 0.4s cubic-bezier(0.4,0,0.2,1); }
+  .bar-fill.calories { background: var(--accent); }
+  .bar-fill.protein  { background: var(--protein-color); }
+  .bar-fill.carbs    { background: var(--carb-color); }
+  .bar-fill.fat      { background: var(--fat-color); }
+  .bar-fill.over     { background: var(--danger); }
+  .bar-value { font-size: 0.7rem; font-family: 'Space Mono', monospace; color: var(--text); width: 82px; text-align: right; flex-shrink: 0; }
+  .coach-message {
+    background: var(--surface2); border-radius: 8px; padding: 10px 14px;
+    font-size: 0.83rem; color: var(--text); line-height: 1.5;
+    border-left: 3px solid var(--accent); min-height: 38px; font-style: italic;
+  }
+  .coach-message.warn  { border-left-color: var(--warn); }
+  .coach-message.alert { border-left-color: var(--danger); }
+  .coach-message.good  { border-left-color: var(--success); }
+  .settings-drawer {
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: 10px; margin-bottom: 18px; overflow: hidden;
+  }
+  .settings-toggle {
+    width: 100%; display: flex; align-items: center; justify-content: space-between;
+    padding: 10px 14px; background: none; border: none; cursor: pointer;
+    color: var(--muted); font-family: 'Space Mono', monospace; font-size: 0.7rem;
+    letter-spacing: 0.06em; text-transform: uppercase;
+  }
+  .settings-toggle:hover { color: var(--text); }
+  .settings-toggle .arrow { transition: transform 0.2s; font-style: normal; }
+  .settings-toggle.open .arrow { transform: rotate(180deg); }
+  .settings-body {
+    display: none; padding: 0 14px 14px;
+  }
+  .settings-body.open { display: block; }
+  .settings-body label {
+    font-size: 0.68rem; color: var(--muted); font-family: 'Space Mono', monospace;
+    letter-spacing: 0.08em; text-transform: uppercase; display: block; margin-bottom: 4px;
+  }
+  .settings-body input {
+    width: 100%; background: var(--surface2); border: 1px solid var(--border);
+    border-radius: 6px; padding: 8px 12px; color: var(--text);
+    font-family: 'Space Mono', monospace; font-size: 0.73rem;
+  }
+  .settings-body input:focus { outline: none; border-color: var(--accent); }
+  .settings-body input::placeholder { color: var(--muted); }
+  .settings-save {
+    margin-top: 10px; padding: 7px 16px; background: var(--accent); color: #000;
+    border: none; border-radius: 6px; font-family: 'Space Mono', monospace;
+    font-size: 0.75rem; font-weight: 700; cursor: pointer;
+  }
+  .settings-save:hover { opacity: 0.85; }
+  .meal-selector { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 18px; }
+  .meal-pill {
+    padding: 6px 14px; border-radius: 20px; border: 1px solid var(--border);
+    background: var(--surface); color: var(--muted);
+    font-size: 0.8rem; font-weight: 500; cursor: pointer; transition: all 0.15s;
+  }
+  .meal-pill:hover { border-color: var(--accent); color: var(--text); }
+  .meal-pill.active { background: var(--accent); color: #000; border-color: var(--accent); font-weight: 600; }
+  .input-toggle {
+    display: flex; background: var(--surface); border: 1px solid var(--border);
+    border-radius: 8px; overflow: hidden; margin-bottom: 14px;
+  }
+  .toggle-btn {
+    flex: 1; padding: 10px; text-align: center; font-size: 0.82rem;
+    font-weight: 500; cursor: pointer; border: none; background: transparent;
+    color: var(--muted); transition: all 0.15s;
+  }
+  .toggle-btn.active { background: var(--surface2); color: var(--text); }
+  .input-area { margin-bottom: 14px; }
+  textarea {
+    width: 100%; background: var(--surface); border: 1px solid var(--border);
+    border-radius: 10px; padding: 14px; color: var(--text);
+    font-family: 'DM Sans', sans-serif; font-size: 0.92rem;
+    resize: none; height: 90px; transition: border-color 0.15s;
+  }
+  textarea:focus { outline: none; border-color: var(--accent); }
+  textarea::placeholder { color: var(--muted); }
+  .photo-drop {
+    background: var(--surface); border: 2px dashed var(--border);
+    border-radius: 10px; padding: 28px; text-align: center;
+    cursor: pointer; transition: all 0.15s; position: relative;
+  }
+  .photo-drop:hover { border-color: var(--accent); background: var(--surface2); }
+  .photo-drop input[type=file] {
+    position: absolute; inset: 0; opacity: 0; cursor: pointer; width: 100%; height: 100%;
+  }
+  .photo-drop .icon { font-size: 1.8rem; margin-bottom: 6px; }
+  .photo-drop p { color: var(--muted); font-size: 0.82rem; }
+  .photo-drop p strong { color: var(--text); }
+  .photo-preview { width: 100%; max-height: 180px; object-fit: cover; border-radius: 8px; margin-top: 10px; display: none; }
+  .clarify-box {
+    background: var(--surface); border: 1px solid var(--warn);
+    border-radius: 10px; padding: 16px; margin-bottom: 14px; display: none;
+  }
+  .clarify-box .q-label {
+    font-size: 0.7rem; color: var(--warn); font-family: 'Space Mono', monospace;
+    text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: 8px;
+  }
+  .clarify-box .question { font-size: 0.9rem; color: var(--text); margin-bottom: 12px; line-height: 1.5; }
+  .clarify-box textarea { height: 60px; border-color: var(--border); margin-bottom: 10px; }
+  .btn-clarify-submit {
+    padding: 8px 20px; background: var(--warn); color: #000;
+    border: none; border-radius: 6px; font-family: 'Space Mono', monospace;
+    font-size: 0.78rem; font-weight: 700; cursor: pointer; transition: all 0.15s;
+  }
+  .btn-clarify-submit:hover { opacity: 0.85; }
+  .btn-analyze {
+    width: 100%; padding: 13px; background: var(--accent); color: #000;
+    border: none; border-radius: 10px; font-family: 'Space Mono', monospace;
+    font-size: 0.88rem; font-weight: 700; cursor: pointer; letter-spacing: 0.05em;
+    transition: all 0.15s; margin-bottom: 18px;
+  }
+  .btn-analyze:hover { opacity: 0.9; transform: translateY(-1px); }
+  .btn-analyze:disabled { opacity: 0.4; transform: none; cursor: not-allowed; }
+  .loading { text-align: center; padding: 22px; display: none; }
+  .spinner {
+    width: 28px; height: 28px; border: 2px solid var(--border);
+    border-top-color: var(--accent); border-radius: 50%;
+    animation: spin 0.8s linear infinite; margin: 0 auto 10px;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .loading p { color: var(--muted); font-size: 0.82rem; font-family: 'Space Mono', monospace; }
+  .results {
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: 12px; padding: 18px; display: none; margin-bottom: 14px;
+  }
+  .results-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; }
+  .results-header h3 {
+    font-family: 'Space Mono', monospace; font-size: 0.75rem;
+    color: var(--accent); letter-spacing: 0.08em; text-transform: uppercase;
+  }
+  .food-desc {
+    font-size: 0.85rem; color: var(--muted); margin-bottom: 14px;
+    padding: 9px 12px; background: var(--surface2); border-radius: 6px;
+    border-left: 3px solid var(--accent);
+  }
+  .macro-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 7px; margin-bottom: 7px; }
+  .macro-cell { background: var(--surface2); border-radius: 8px; padding: 9px 6px; text-align: center; }
+  .macro-cell label {
+    font-size: 0.6rem; color: var(--muted); font-family: 'Space Mono', monospace;
+    text-transform: uppercase; letter-spacing: 0.06em; display: block; margin-bottom: 3px;
+  }
+  .macro-cell input {
+    width: 100%; background: transparent; border: none; color: var(--text);
+    font-family: 'Space Mono', monospace; font-size: 1rem; font-weight: 700;
+    text-align: center; padding: 0;
+  }
+  .macro-cell input:focus { outline: none; color: var(--accent); }
+  .macro-cell.calories  { border-top: 2px solid var(--accent); }
+  .macro-cell.protein   { border-top: 2px solid var(--protein-color); }
+  .macro-cell.carbs     { border-top: 2px solid var(--carb-color); }
+  .macro-cell.fat       { border-top: 2px solid var(--fat-color); }
+  .macro-cell.small input { font-size: 0.88rem; }
+  .edit-hint { font-size: 0.68rem; color: var(--muted); text-align: center; margin-top: 10px; font-family: 'Space Mono', monospace; }
+  .action-row { display: flex; gap: 10px; }
+  .btn-log {
+    flex: 1; padding: 13px; background: transparent; color: var(--accent);
+    border: 1.5px solid var(--accent); border-radius: 10px;
+    font-family: 'Space Mono', monospace; font-size: 0.85rem; font-weight: 700;
+    cursor: pointer; letter-spacing: 0.04em; transition: all 0.15s;
+  }
+  .btn-log:hover { background: var(--accent); color: #000; }
+  .btn-log:disabled { opacity: 0.4; cursor: not-allowed; }
+  .btn-cancel {
+    padding: 13px 18px; background: transparent; color: var(--muted);
+    border: 1.5px solid var(--border); border-radius: 10px;
+    font-family: 'Space Mono', monospace; font-size: 0.85rem;
+    cursor: pointer; transition: all 0.15s;
+  }
+  .btn-cancel:hover { border-color: var(--danger); color: var(--danger); }
+  .toast {
+    position: fixed; bottom: 24px; left: 50%;
+    transform: translateX(-50%) translateY(80px);
+    background: var(--success); color: #000;
+    padding: 11px 22px; border-radius: 8px;
+    font-family: 'Space Mono', monospace; font-size: 0.78rem; font-weight: 700;
+    transition: transform 0.3s cubic-bezier(0.34,1.56,0.64,1); z-index: 100;
+  }
+  .toast.error { background: var(--danger); color: #fff; }
+  .toast.show { transform: translateX(-50%) translateY(0); }
+</style>
+</head>
+<body>
+<div class="container">
+
+  <header>
+    <div class="header-left">
+      <h1>MACRO_LOG</h1>
+      <span>→ pabbly webhook</span>
+    </div>
+    <div class="date-badge" id="dateBadge"></div>
+  </header>
+
+  <!-- Daily Coach Panel -->
+  <div class="coach-panel">
+    <div class="coach-header">
+      <h2>TODAY'S PROGRESS</h2>
+      <button class="coach-reset" onclick="resetDay()">reset day</button>
+    </div>
+    <div class="macro-bars">
+      <div class="bar-row">
+        <span class="bar-label">Calories</span>
+        <div class="bar-track"><div class="bar-fill calories" id="bar_cal" style="width:0%"></div></div>
+        <span class="bar-value" id="val_cal">0 / 2200</span>
+      </div>
+      <div class="bar-row">
+        <span class="bar-label">Protein</span>
+        <div class="bar-track"><div class="bar-fill protein" id="bar_pro" style="width:0%"></div></div>
+        <span class="bar-value" id="val_pro">0g / 150g</span>
+      </div>
+      <div class="bar-row">
+        <span class="bar-label">Carbs</span>
+        <div class="bar-track"><div class="bar-fill carbs" id="bar_carb" style="width:0%"></div></div>
+        <span class="bar-value" id="val_carb">0g / 220g</span>
+      </div>
+      <div class="bar-row">
+        <span class="bar-label">Fat</span>
+        <div class="bar-track"><div class="bar-fill fat" id="bar_fat" style="width:0%"></div></div>
+        <span class="bar-value" id="val_fat">0g / 70g</span>
+      </div>
+    </div>
+    <div class="coach-message" id="coachMsg">Log your first meal to get personalized feedback.</div>
+  </div>
+
+  <!-- Settings drawer -->
+  <div class="settings-drawer">
+    <button class="settings-toggle" id="settingsToggle" onclick="toggleSettings()">
+      <span>⚙ Settings</span>
+      <span class="arrow">▾</span>
+    </button>
+    <div class="settings-body" id="settingsBody">
+      <label>Pabbly Webhook URL</label>
+      <input type="text" id="webhookUrl" placeholder="https://connect.pabbly.com/workflow/sendwebhookdata/..." />
+      <button class="settings-save" onclick="saveSettings()">SAVE</button>
+    </div>
+  </div>
+
+  <!-- Meal type -->
+  <div class="meal-selector">
+    <div class="meal-pill active" data-meal="Breakfast">Breakfast</div>
+    <div class="meal-pill" data-meal="Lunch">Lunch</div>
+    <div class="meal-pill" data-meal="Dinner">Dinner</div>
+    <div class="meal-pill" data-meal="Snack">Snack</div>
+    <div class="meal-pill" data-meal="Hydration">Hydration</div>
+  </div>
+
+  <!-- Input toggle -->
+  <div class="input-toggle">
+    <button class="toggle-btn active" id="btnText" onclick="switchInput('text')">✏️ Describe Meal</button>
+    <button class="toggle-btn" id="btnPhoto" onclick="switchInput('photo')">📷 Upload Photo</button>
+  </div>
+
+  <!-- Text input -->
+  <div class="input-area" id="textArea">
+    <textarea id="mealText" placeholder="e.g. 2 scrambled eggs with shredded cheese, 2 slices whole wheat toast with butter…"></textarea>
+  </div>
+
+  <!-- Photo input -->
+  <div class="input-area" id="photoArea" style="display:none">
+    <div class="photo-drop">
+      <input type="file" id="photoInput" accept="image/*" onchange="handlePhoto(this)" />
+      <div class="icon">📸</div>
+      <p><strong>Click to upload</strong> or drag & drop</p>
+      <p>JPG, PNG, HEIC supported</p>
+    </div>
+    <img id="photoPreview" class="photo-preview" />
+  </div>
+
+  <!-- Clarifying question -->
+  <div class="clarify-box" id="clarifyBox">
+    <div class="q-label">🤔 One quick question</div>
+    <div class="question" id="clarifyQuestion"></div>
+    <textarea id="clarifyAnswer" placeholder="Your answer…"></textarea>
+    <button class="btn-clarify-submit" onclick="submitClarification()">SUBMIT →</button>
+  </div>
+
+  <button class="btn-analyze" id="analyzeBtn" onclick="analyze()">ANALYZE MACROS</button>
+
+  <!-- Loading -->
+  <div class="loading" id="loading">
+    <div class="spinner"></div>
+    <p id="loadingMsg">analyzing meal...</p>
+  </div>
+
+  <!-- Results -->
+  <div class="results" id="results">
+    <div class="results-header">
+      <h3>ESTIMATED MACROS</h3>
+      <span style="font-size:0.72rem;color:var(--muted);font-family:'Space Mono',monospace" id="mealTypeLabel"></span>
+    </div>
+    <div class="food-desc" id="foodDesc"></div>
+    <div class="macro-grid">
+      <div class="macro-cell calories"><label>Calories</label><input type="number" id="r_calories" /></div>
+      <div class="macro-cell protein"><label>Protein g</label><input type="number" id="r_protein" /></div>
+      <div class="macro-cell carbs"><label>Carbs g</label><input type="number" id="r_carbs" /></div>
+      <div class="macro-cell fat"><label>Fat g</label><input type="number" id="r_fat" /></div>
+    </div>
+    <div class="macro-grid" style="margin-top:7px">
+      <div class="macro-cell small"><label>Sugar g</label><input type="number" id="r_sugar" /></div>
+      <div class="macro-cell small"><label>Fiber g</label><input type="number" id="r_fiber" /></div>
+      <div class="macro-cell small"><label>Chol mg</label><input type="number" id="r_cholesterol" /></div>
+      <div class="macro-cell small"><label>Water oz</label><input type="number" id="r_water" /></div>
+    </div>
+    <p class="edit-hint">tap any value to edit before confirming</p>
+  </div>
+
+  <div class="action-row" id="actionRow" style="display:none">
+    <button class="btn-cancel" onclick="cancelLog()">✕ Cancel</button>
+    <button class="btn-log" id="logBtn" onclick="logToSheet()">✓ CONFIRM & LOG →</button>
+  </div>
+
+</div>
+<div class="toast" id="toast"></div>
+
+<script>
+  const TARGETS = { calories:2200, protein:150, carbs:220, fat:70, fiber:38, sugar:50, cholesterol:300 };
+  let daily = { calories:0, protein:0, carbs:0, fat:0, fiber:0, sugar:0, cholesterol:0, water:0, meals:[] };
+  let currentMode = 'text', selectedMeal = 'Breakfast';
+  let photoBase64 = null, photoMediaType = null;
+  let conversationHistory = [];
+
+  // Load saved webhook
+  const savedWebhook = localStorage.getItem('macro_webhook');
+  if (savedWebhook) document.getElementById('webhookUrl').value = savedWebhook;
+
+  function toggleSettings() {
+    const toggle = document.getElementById('settingsToggle');
+    const body = document.getElementById('settingsBody');
+    toggle.classList.toggle('open');
+    body.classList.toggle('open');
+  }
+
+  function saveSettings() {
+    const url = document.getElementById('webhookUrl').value.trim();
+    if (url) {
+      localStorage.setItem('macro_webhook', url);
+      showToast('✓ Webhook saved');
+      toggleSettings();
+    } else {
+      showToast('Enter a webhook URL first', true);
+    }
+  }
+
+  const pad = n => String(n).padStart(2,'0');
+  const now = new Date();
+  document.getElementById('dateBadge').textContent =
+    `${now.getFullYear()}-${pad(now.getMonth()+1)}-${pad(now.getDate())}`;
+
+  document.querySelectorAll('.meal-pill').forEach(pill => {
+    pill.addEventListener('click', () => {
+      document.querySelectorAll('.meal-pill').forEach(p => p.classList.remove('active'));
+      pill.classList.add('active');
+      selectedMeal = pill.dataset.meal;
+    });
+  });
+
+  function switchInput(mode) {
+    currentMode = mode;
+    document.getElementById('textArea').style.display   = mode==='text'  ? 'block' : 'none';
+    document.getElementById('photoArea').style.display  = mode==='photo' ? 'block' : 'none';
+    document.getElementById('btnText').classList.toggle('active', mode==='text');
+    document.getElementById('btnPhoto').classList.toggle('active', mode==='photo');
+  }
+
+  function handlePhoto(input) {
+    const file = input.files[0]; if (!file) return;
+    const reader = new FileReader();
+    reader.onload = e => {
+      const url = e.target.result;
+      photoBase64 = url.split(',')[1]; photoMediaType = file.type;
+      const p = document.getElementById('photoPreview');
+      p.src = url; p.style.display = 'block';
+    };
+    reader.readAsDataURL(file);
+  }
+
+  const SYSTEM = `You are a nutrition coach helping a 52-year-old male, 6 feet tall, 182 lbs track macros.
+Daily targets: Calories ${TARGETS.calories}, Protein ${TARGETS.protein}g, Carbs ${TARGETS.carbs}g, Fat ${TARGETS.fat}g, Fiber ${TARGETS.fiber}g, Sugar <${TARGETS.sugar}g, Cholesterol <${TARGETS.cholesterol}mg.
+
+Analyze the meal. If the description is too vague to estimate accurately (e.g. "a sandwich", "some pasta"), ask ONE short clarifying question. Otherwise go straight to macros.
+
+Respond ONLY in one of these two JSON formats — no markdown, no explanation:
+
+If clarification needed:
+{"status":"clarify","question":"your question"}
+
+If ready to estimate:
+{"status":"macros","food":"concise description","calories":0,"protein":0,"fat":0,"carbs":0,"sugar":0,"fiber":0,"cholesterol":0,"water":0}
+
+Numbers only. Protein/fat/carbs/sugar/fiber in grams. Cholesterol in mg. Water in oz (0 unless it's a drink).`;
+
+  async function analyze() {
+    const webhook = document.getElementById('webhookUrl').value.trim();
+    if (!webhook) { showToast('Enter your Pabbly webhook URL first', true); return; }
+    if (currentMode==='text' && !document.getElementById('mealText').value.trim()) {
+      showToast('Describe your meal first', true); return;
+    }
+    if (currentMode==='photo' && !photoBase64) {
+      showToast('Upload a photo first', true); return;
+    }
+
+    let userContent;
+    if (currentMode==='text') {
+      userContent = `Meal type: ${selectedMeal}. Food: ${document.getElementById('mealText').value.trim()}`;
+    } else {
+      userContent = [
+        { type:'image', source:{ type:'base64', media_type:photoMediaType, data:photoBase64 } },
+        { type:'text', text:`This is my ${selectedMeal}. Analyze the macros.` }
+      ];
+    }
+    conversationHistory = [{ role:'user', content: userContent }];
+    await callClaude();
+  }
+
+  async function submitClarification() {
+    const answer = document.getElementById('clarifyAnswer').value.trim();
+    if (!answer) { showToast('Please type an answer', true); return; }
+    const question = document.getElementById('clarifyQuestion').textContent;
+    conversationHistory.push({ role:'assistant', content: JSON.stringify({status:'clarify', question}) });
+    conversationHistory.push({ role:'user', content: answer });
+    document.getElementById('clarifyBox').style.display = 'none';
+    document.getElementById('clarifyAnswer').value = '';
+    await callClaude();
+  }
+
+  async function callClaude() {
+    document.getElementById('analyzeBtn').disabled = true;
+    document.getElementById('loading').style.display = 'block';
+    document.getElementById('results').style.display = 'none';
+    document.getElementById('actionRow').style.display = 'none';
+    document.getElementById('loadingMsg').textContent = 'analyzing meal...';
+
+    try {
+      const res = await fetch('https://api.anthropic.com/v1/messages', {
+        method:'POST',
+        headers:{'Content-Type':'application/json'},
+        body: JSON.stringify({
+          model:'claude-sonnet-4-20250514', max_tokens:1000,
+          system: SYSTEM, messages: conversationHistory
+        })
+      });
+      const data = await res.json();
+      const raw = data.content[0].text.replace(/```json|```/g,'').trim();
+      const parsed = JSON.parse(raw);
+
+      if (parsed.status === 'clarify') {
+        document.getElementById('clarifyQuestion').textContent = parsed.question;
+        document.getElementById('clarifyBox').style.display = 'block';
+        document.getElementById('clarifyBox').scrollIntoView({ behavior:'smooth', block:'nearest' });
+      } else {
+        populateResults(parsed);
+        document.getElementById('results').style.display = 'block';
+        document.getElementById('actionRow').style.display = 'flex';
+        document.getElementById('results').scrollIntoView({ behavior:'smooth', block:'nearest' });
+      }
+    } catch(err) {
+      showToast('Error analyzing meal. Try again.', true);
+    } finally {
+      document.getElementById('loading').style.display = 'none';
+      document.getElementById('analyzeBtn').disabled = false;
+    }
+  }
+
+  function populateResults(m) {
+    document.getElementById('foodDesc').textContent    = m.food;
+    document.getElementById('r_calories').value        = m.calories;
+    document.getElementById('r_protein').value         = m.protein;
+    document.getElementById('r_fat').value             = m.fat;
+    document.getElementById('r_carbs').value           = m.carbs;
+    document.getElementById('r_sugar').value           = m.sugar;
+    document.getElementById('r_fiber').value           = m.fiber;
+    document.getElementById('r_cholesterol').value     = m.cholesterol;
+    document.getElementById('r_water').value           = m.water;
+    document.getElementById('mealTypeLabel').textContent = selectedMeal.toUpperCase();
+  }
+
+  function cancelLog() {
+    document.getElementById('results').style.display = 'none';
+    document.getElementById('actionRow').style.display = 'none';
+  }
+
+  async function logToSheet() {
+    const webhook = document.getElementById('webhookUrl').value.trim();
+    document.getElementById('logBtn').disabled = true;
+    const n = new Date();
+    const ts = `${n.getFullYear()}-${pad(n.getMonth()+1)}-${pad(n.getDate())} ${pad(n.getHours())}:${pad(n.getMinutes())}:${pad(n.getSeconds())}`;
+    const entry = {
+      timestamp: ts, meal: selectedMeal,
+      food:        document.getElementById('foodDesc').textContent,
+      calories:    Number(document.getElementById('r_calories').value),
+      protein:     Number(document.getElementById('r_protein').value),
+      fat:         Number(document.getElementById('r_fat').value),
+      carbs:       Number(document.getElementById('r_carbs').value),
+      sugar:       Number(document.getElementById('r_sugar').value),
+      fiber:       Number(document.getElementById('r_fiber').value),
+      cholesterol: Number(document.getElementById('r_cholesterol').value),
+      water:       Number(document.getElementById('r_water').value)
+    };
+
+    try {
+      await fetch(webhook, {
+        method:'POST', headers:{'Content-Type':'application/json'},
+        body: JSON.stringify(entry), mode:'no-cors'
+      });
+
+      daily.calories    += entry.calories;
+      daily.protein     += entry.protein;
+      daily.carbs       += entry.carbs;
+      daily.fat         += entry.fat;
+      daily.fiber       += entry.fiber;
+      daily.sugar       += entry.sugar;
+      daily.cholesterol += entry.cholesterol;
+      daily.water       += entry.water;
+      daily.meals.push(entry);
+
+      updateCoachPanel();
+      showToast('✓ Logged to sheet!');
+
+      setTimeout(() => {
+        document.getElementById('results').style.display = 'none';
+        document.getElementById('actionRow').style.display = 'none';
+        document.getElementById('clarifyBox').style.display = 'none';
+        document.getElementById('mealText').value = '';
+        photoBase64 = null;
+        document.getElementById('photoPreview').style.display = 'none';
+        conversationHistory = [];
+      }, 1200);
+    } catch(err) {
+      showToast('Webhook error. Check URL.', true);
+    } finally {
+      document.getElementById('logBtn').disabled = false;
+    }
+  }
+
+  function updateCoachPanel() {
+    const setBar = (id, cur, target) => {
+      const pct = Math.min((cur/target)*100, 100);
+      const el = document.getElementById('bar_'+id);
+      el.style.width = pct+'%';
+      el.classList.toggle('over', cur > target);
+    };
+    setBar('cal',  daily.calories, TARGETS.calories);
+    setBar('pro',  daily.protein,  TARGETS.protein);
+    setBar('carb', daily.carbs,    TARGETS.carbs);
+    setBar('fat',  daily.fat,      TARGETS.fat);
+    document.getElementById('val_cal').textContent  = `${daily.calories} / ${TARGETS.calories}`;
+    document.getElementById('val_pro').textContent  = `${daily.protein}g / ${TARGETS.protein}g`;
+    document.getElementById('val_carb').textContent = `${daily.carbs}g / ${TARGETS.carbs}g`;
+    document.getElementById('val_fat').textContent  = `${daily.fat}g / ${TARGETS.fat}g`;
+    fetchCoachMessage();
+  }
+
+  async function fetchCoachMessage() {
+    try {
+      const prompt = `User: 52yo male, 6ft, 182lbs.
+Daily targets: Cal ${TARGETS.calories}, Protein ${TARGETS.protein}g, Carbs ${TARGETS.carbs}g, Fat ${TARGETS.fat}g, Fiber ${TARGETS.fiber}g, Sugar <${TARGETS.sugar}g, Cholesterol <${TARGETS.cholesterol}mg.
+Today so far (${daily.meals.length} meals logged — ${daily.meals.map(m=>m.meal).join(', ')}):
+Cal ${daily.calories}, Protein ${daily.protein}g, Carbs ${daily.carbs}g, Fat ${daily.fat}g, Fiber ${daily.fiber}g, Sugar ${daily.sugar}g, Cholesterol ${daily.cholesterol}mg, Water ${daily.water}oz.
+
+Write a short coaching message (2 sentences max). Be direct and specific — call out what's on track, what needs attention, or suggest a specific food to fill a gap. No emojis, no markdown. Return only the message.`;
+
+      const res = await fetch('https://api.anthropic.com/v1/messages', {
+        method:'POST', headers:{'Content-Type':'application/json'},
+        body: JSON.stringify({ model:'claude-sonnet-4-20250514', max_tokens:100, messages:[{role:'user',content:prompt}] })
+      });
+      const data = await res.json();
+      const msg = data.content[0].text.trim();
+      const el = document.getElementById('coachMsg');
+      el.textContent = msg;
+      el.className = 'coach-message';
+      const l = msg.toLowerCase();
+      if (l.includes('great') || l.includes('excellent') || l.includes('on track') || l.includes('solid') || l.includes('nice')) {
+        el.classList.add('good');
+      } else if (l.includes('high') || l.includes('over') || l.includes('too much') || l.includes('watch')) {
+        el.classList.add('alert');
+      } else {
+        el.classList.add('warn');
+      }
+    } catch(e) { /* silent */ }
+  }
+
+  function resetDay() {
+    daily = { calories:0, protein:0, carbs:0, fat:0, fiber:0, sugar:0, cholesterol:0, water:0, meals:[] };
+    ['cal','pro','carb','fat'].forEach(id => {
+      const b = document.getElementById('bar_'+id);
+      b.style.width='0%'; b.classList.remove('over');
+    });
+    document.getElementById('val_cal').textContent  = `0 / ${TARGETS.calories}`;
+    document.getElementById('val_pro').textContent  = `0g / ${TARGETS.protein}g`;
+    document.getElementById('val_carb').textContent = `0g / ${TARGETS.carbs}g`;
+    document.getElementById('val_fat').textContent  = `0g / ${TARGETS.fat}g`;
+    document.getElementById('coachMsg').textContent = 'Log your first meal to get personalized feedback.';
+    document.getElementById('coachMsg').className = 'coach-message';
+  }
+
+  function showToast(msg, isError=false) {
+    const t = document.getElementById('toast');
+    t.textContent = msg; t.className = 'toast'+(isError?' error':'');
+    t.classList.add('show');
+    setTimeout(() => t.classList.remove('show'), 3000);
+  }
+</script>
+</body>
+</html>
