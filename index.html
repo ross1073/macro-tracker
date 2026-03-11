@@ -381,9 +381,10 @@
   let photoBase64 = null, photoMediaType = null;
   let conversationHistory = [];
 
-  // Load saved webhook
-  const savedWebhook = localStorage.getItem('macro_webhook');
-  if (savedWebhook) document.getElementById('webhookUrl').value = savedWebhook;
+  // Default webhook URL (override in settings)
+  const DEFAULT_WEBHOOK = 'https://connect.pabbly.com/workflow/sendwebhookdata/IjU3NjYwNTZlMDYzMTA0MzU1MjZmNTUzMzUxMzMi_pc';
+  const savedWebhook = localStorage.getItem('macro_webhook') || DEFAULT_WEBHOOK;
+  document.getElementById('webhookUrl').value = savedWebhook;
 
   function toggleSettings() {
     const toggle = document.getElementById('settingsToggle');
