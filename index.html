@@ -219,7 +219,6 @@
     padding: 2px 8px; border-radius: 4px; margin-left: 8px; letter-spacing: 0.05em;
   }
   .source-badge.saved { background: var(--success); color: #000; }
-  .source-badge.usda { background: var(--protein-color); color: #000; }
   .source-badge.ai { background: var(--warn); color: #000; }
   .action-row { display: flex; gap: 10px; }
   .btn-save-food {
@@ -476,47 +475,6 @@
     }).join('');
   }
 
-  // ─── USDA Search ───
-  async function searchUSDA(query) {
-    try {
-      const res = await fetch('/api/usda-search', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ query })
-      });
-      const data = await res.json();
-      return data.results || [];
-    } catch (e) { return []; }
-  }
-
-  function scaleUSDAResult(result, userInput) {
-    // USDA nutrients are per 100g. Scale based on serving size or user quantity.
-    const n = result.nutrients;
-    let scale = 1;
-    const servingG = result.servingSize || 100;
-    // Try to extract oz from user input (e.g. "12 ounce", "12 oz")
-    const ozMatch = userInput.match(/(\d+\.?\d*)\s*(?:oz|ounce)/i);
-    if (ozMatch) {
-      const userOz = parseFloat(ozMatch[1]);
-      const userG = userOz * 29.5735; // oz to grams
-      scale = userG / 100;
-    } else {
-      // Default to one serving size
-      scale = servingG / 100;
-    }
-    return {
-      food: result.description + (result.brand ? ` (${result.brand})` : ''),
-      calories: Math.round((n.calories || 0) * scale),
-      protein: Math.round((n.protein || 0) * scale),
-      fat: Math.round((n.fat || 0) * scale),
-      carbs: Math.round((n.carbs || 0) * scale),
-      sugar: Math.round((n.sugar || 0) * scale),
-      fiber: Math.round((n.fiber || 0) * scale),
-      cholesterol: Math.round((n.cholesterol || 0) * scale),
-      water: ozMatch ? Math.round(parseFloat(ozMatch[1])) : 0
-    };
-  }
-
   // ─── Default webhook ───
   const DEFAULT_WEBHOOK = 'https://connect.pabbly.com/workflow/sendwebhookdata/IjU3NjYwNTZlMDYzMTA0MzU1MjZmNTUzMzUxMzMi_pc';
   const savedWebhook = localStorage.getItem('macro_webhook') || DEFAULT_WEBHOOK;
@@ -578,8 +536,6 @@ Daily targets: Calories ${TARGETS.calories}, Protein ${TARGETS.protein}g, Carbs 
 
 Analyze the meal. If the description is too vague to estimate accurately (e.g. "a sandwich", "some pasta"), ask ONE short clarifying question. Otherwise go straight to macros.
 
-IMPORTANT: If USDA nutrition data is provided, use those exact numbers scaled to the user's portion. Do not guess — use the data given.
-
 Respond ONLY in one of these two JSON formats — no markdown, no explanation:
 
 If clarification needed:
@@ -630,25 +586,8 @@ Numbers only. Protein/fat/carbs/sugar/fiber in grams. Cholesterol in mg. Water i
       return;
     }
 
-    // Step 2: Search USDA
-    document.getElementById('loadingMsg').textContent = 'searching USDA database...';
-    const usdaResults = await searchUSDA(input);
-    if (usdaResults.length > 0) {
-      // Check relevance: do input keywords appear in the USDA result?
-      const inputWords = input.toLowerCase().replace(/[^a-z ]/g,'').split(/\s+/).filter(w => w.length > 2 && !['cup','ounce','the','and','with','one','two'].includes(w));
-      const resultDesc = usdaResults[0].description.toLowerCase();
-      const matchCount = inputWords.filter(w => resultDesc.includes(w)).length;
-      const relevance = inputWords.length > 0 ? matchCount / inputWords.length : 0;
-      if (relevance >= 0.3) {
-        const scaled = scaleUSDAResult(usdaResults[0], input);
-        lastSource = 'usda';
-        showResults(scaled);
-        return;
-      }
-    }
-
-    // Step 3: Fall back to Claude AI
-    document.getElementById('loadingMsg').textContent = 'asking AI (no USDA match)...';
+    // Step 2: AI estimation
+    document.getElementById('loadingMsg').textContent = 'analyzing meal...';
     const userContent = `Meal type: ${selectedMeal}. Food: ${input}`;
     conversationHistory = [{ role:'user', content: userContent }];
     lastSource = 'ai';
@@ -718,7 +657,6 @@ Numbers only. Protein/fat/carbs/sugar/fiber in grams. Cholesterol in mg. Water i
     // Source badge
     const badge = document.getElementById('sourceBadge');
     if (lastSource === 'saved') { badge.textContent = 'SAVED'; badge.className = 'source-badge saved'; }
-    else if (lastSource === 'usda') { badge.textContent = 'USDA'; badge.className = 'source-badge usda'; }
     else { badge.textContent = 'AI EST.'; badge.className = 'source-badge ai'; }
     // Save food button
     const btn = document.getElementById('saveFoodBtn');
