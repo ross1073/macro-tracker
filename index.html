@@ -76,40 +76,6 @@
   .coach-message.warn  { border-left-color: var(--warn); }
   .coach-message.alert { border-left-color: var(--danger); }
   .coach-message.good  { border-left-color: var(--success); }
-  .settings-drawer {
-    background: var(--surface); border: 1px solid var(--border);
-    border-radius: 10px; margin-bottom: 18px; overflow: hidden;
-  }
-  .settings-toggle {
-    width: 100%; display: flex; align-items: center; justify-content: space-between;
-    padding: 10px 14px; background: none; border: none; cursor: pointer;
-    color: var(--muted); font-family: 'Space Mono', monospace; font-size: 0.7rem;
-    letter-spacing: 0.06em; text-transform: uppercase;
-  }
-  .settings-toggle:hover { color: var(--text); }
-  .settings-toggle .arrow { transition: transform 0.2s; font-style: normal; }
-  .settings-toggle.open .arrow { transform: rotate(180deg); }
-  .settings-body {
-    display: none; padding: 0 14px 14px;
-  }
-  .settings-body.open { display: block; }
-  .settings-body label {
-    font-size: 0.68rem; color: var(--muted); font-family: 'Space Mono', monospace;
-    letter-spacing: 0.08em; text-transform: uppercase; display: block; margin-bottom: 4px;
-  }
-  .settings-body input {
-    width: 100%; background: var(--surface2); border: 1px solid var(--border);
-    border-radius: 6px; padding: 8px 12px; color: var(--text);
-    font-family: 'Space Mono', monospace; font-size: 0.73rem;
-  }
-  .settings-body input:focus { outline: none; border-color: var(--accent); }
-  .settings-body input::placeholder { color: var(--muted); }
-  .settings-save {
-    margin-top: 10px; padding: 7px 16px; background: var(--accent); color: #000;
-    border: none; border-radius: 6px; font-family: 'Space Mono', monospace;
-    font-size: 0.75rem; font-weight: 700; cursor: pointer;
-  }
-  .settings-save:hover { opacity: 0.85; }
   .quick-log { margin-bottom: 18px; }
   .quick-log-header {
     font-family: 'Space Mono', monospace; font-size: 0.72rem;
@@ -404,19 +370,6 @@
     <button class="btn-log" id="logBtn" onclick="logToSheet()">✓ CONFIRM & LOG →</button>
   </div>
 
-  <!-- Settings drawer -->
-  <div class="settings-drawer">
-    <button class="settings-toggle" id="settingsToggle" onclick="toggleSettings()">
-      <span>⚙ Settings</span>
-      <span class="arrow">▾</span>
-    </button>
-    <div class="settings-body" id="settingsBody">
-      <label>Pabbly Webhook URL</label>
-      <input type="text" id="webhookUrl" placeholder="https://connect.pabbly.com/workflow/sendwebhookdata/..." />
-      <button class="settings-save" onclick="saveSettings()">SAVE</button>
-    </div>
-  </div>
-
 </div>
 <div class="toast" id="toast"></div>
 
@@ -427,27 +380,6 @@
   let photoBase64 = null, photoMediaType = null;
   let conversationHistory = [];
 
-  // Load saved webhook
-  const savedWebhook = localStorage.getItem('macro_webhook');
-  if (savedWebhook) document.getElementById('webhookUrl').value = savedWebhook;
-
-  function toggleSettings() {
-    const toggle = document.getElementById('settingsToggle');
-    const body = document.getElementById('settingsBody');
-    toggle.classList.toggle('open');
-    body.classList.toggle('open');
-  }
-
-  function saveSettings() {
-    const url = document.getElementById('webhookUrl').value.trim();
-    if (url) {
-      localStorage.setItem('macro_webhook', url);
-      showToast('✓ Webhook saved');
-      toggleSettings();
-    } else {
-      showToast('Enter a webhook URL first', true);
-    }
-  }
 
   const pad = n => String(n).padStart(2,'0');
   const now = new Date();
