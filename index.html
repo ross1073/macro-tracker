@@ -214,32 +214,7 @@
   .macro-cell.fat       { border-top: 2px solid var(--fat-color); }
   .macro-cell.small input { font-size: 0.88rem; }
   .edit-hint { font-size: 0.68rem; color: var(--muted); text-align: center; margin-top: 10px; font-family: 'Space Mono', monospace; }
-  .source-badge {
-    display: inline-block; font-size: 0.6rem; font-family: 'Space Mono', monospace;
-    padding: 2px 8px; border-radius: 4px; margin-left: 8px; letter-spacing: 0.05em;
-  }
-  .source-badge.saved { background: var(--success); color: #000; }
-  .source-badge.ai { background: var(--warn); color: #000; }
   .action-row { display: flex; gap: 10px; }
-  .btn-save-food {
-    width: 100%; padding: 10px; margin-top: 10px; background: transparent;
-    color: var(--success); border: 1px solid var(--success); border-radius: 8px;
-    font-family: 'Space Mono', monospace; font-size: 0.75rem; font-weight: 700;
-    cursor: pointer; transition: all 0.15s;
-  }
-  .btn-save-food:hover { background: var(--success); color: #000; }
-  .saved-foods-list {
-    max-height: 200px; overflow-y: auto; margin-top: 10px;
-  }
-  .saved-food-item {
-    display: flex; justify-content: space-between; align-items: center;
-    padding: 6px 0; border-bottom: 1px solid var(--border); font-size: 0.75rem;
-  }
-  .saved-food-item span { color: var(--text); font-family: 'Space Mono', monospace; }
-  .saved-food-delete {
-    background: none; border: none; color: var(--danger); cursor: pointer;
-    font-size: 0.7rem; font-family: 'Space Mono', monospace;
-  }
   .btn-log {
     flex: 1; padding: 13px; background: transparent; color: var(--accent);
     border: 1.5px solid var(--accent); border-radius: 10px;
@@ -265,19 +240,6 @@
   }
   .toast.error { background: var(--danger); color: #fff; }
   .toast.show { transform: translateX(-50%) translateY(0); }
-  .footer-bar {
-    margin-top: 30px; padding-top: 16px; border-top: 1px solid var(--border);
-    display: flex; flex-direction: column; align-items: center; gap: 10px;
-  }
-  .btn-dashboard {
-    width: 100%; padding: 13px; background: transparent; color: var(--accent);
-    border: 1.5px solid var(--accent); border-radius: 10px;
-    font-family: 'Space Mono', monospace; font-size: 0.82rem; font-weight: 700;
-    cursor: pointer; letter-spacing: 0.04em; text-decoration: none;
-    text-align: center; display: block; transition: all 0.15s;
-  }
-  .btn-dashboard:hover { background: var(--accent); color: #000; }
-  .version-tag { font-size: 0.62rem; color: var(--muted); font-family: 'Space Mono', monospace; }
 </style>
 </head>
 <body>
@@ -332,10 +294,6 @@
       <label>Pabbly Webhook URL</label>
       <input type="text" id="webhookUrl" placeholder="https://connect.pabbly.com/workflow/sendwebhookdata/..." />
       <button class="settings-save" onclick="saveSettings()">SAVE</button>
-      <div style="margin-top:14px;border-top:1px solid var(--border);padding-top:12px">
-        <label>Saved Foods</label>
-        <div class="saved-foods-list" id="savedFoodsList"></div>
-      </div>
     </div>
   </div>
 
@@ -389,7 +347,7 @@
   <!-- Results -->
   <div class="results" id="results">
     <div class="results-header">
-      <h3>MACROS <span id="sourceBadge" class="source-badge"></span></h3>
+      <h3>ESTIMATED MACROS</h3>
       <span style="font-size:0.72rem;color:var(--muted);font-family:'Space Mono',monospace" id="mealTypeLabel"></span>
     </div>
     <div class="food-desc" id="foodDesc"></div>
@@ -406,17 +364,11 @@
       <div class="macro-cell small"><label>Water oz</label><input type="number" id="r_water" /></div>
     </div>
     <p class="edit-hint">tap any value to edit before confirming</p>
-    <button class="btn-save-food" id="saveFoodBtn" onclick="saveCurrentFood()">+ SAVE THIS FOOD FOR NEXT TIME</button>
   </div>
 
   <div class="action-row" id="actionRow" style="display:none">
     <button class="btn-cancel" onclick="cancelLog()">✕ Cancel</button>
     <button class="btn-log" id="logBtn" onclick="logToSheet()">✓ CONFIRM & LOG →</button>
-  </div>
-
-  <div class="footer-bar">
-    <a class="btn-dashboard" href="https://lookerstudio.google.com/u/1/reporting/100abc5e-0e08-4104-a33d-d56f9a46bac5/page/KGltE" target="_blank" rel="noopener">VIEW DASHBOARD →</a>
-    <span class="version-tag">v2.1.0 · 2026-03-12 16:45</span>
   </div>
 
 </div>
@@ -428,75 +380,10 @@
   let currentMode = 'text', selectedMeal = 'Breakfast';
   let photoBase64 = null, photoMediaType = null;
   let conversationHistory = [];
-  let lastSource = 'ai'; // tracks where macros came from: 'saved', 'usda', 'ai'
 
-  // ─── Saved Foods (localStorage) ───
-  function getSavedFoods() {
-    return JSON.parse(localStorage.getItem('macro_saved_foods') || '{}');
-  }
-  function setSavedFoods(foods) {
-    localStorage.setItem('macro_saved_foods', JSON.stringify(foods));
-  }
-  function normalizeKey(text) {
-    return text.toLowerCase().replace(/[^a-z0-9 ]/g, '').replace(/\s+/g, ' ').trim();
-  }
-  function findSavedFood(input) {
-    const foods = getSavedFoods();
-    const key = normalizeKey(input);
-    // Direct match
-    if (foods[key]) return foods[key];
-    // Partial match: check if input contains a saved food name
-    for (const [k, v] of Object.entries(foods)) {
-      if (key.includes(k) || k.includes(key)) return v;
-    }
-    return null;
-  }
-  function saveCurrentFood() {
-    const desc = document.getElementById('foodDesc').textContent;
-    const macros = {
-      food: desc,
-      calories: Number(document.getElementById('r_calories').value),
-      protein: Number(document.getElementById('r_protein').value),
-      fat: Number(document.getElementById('r_fat').value),
-      carbs: Number(document.getElementById('r_carbs').value),
-      sugar: Number(document.getElementById('r_sugar').value),
-      fiber: Number(document.getElementById('r_fiber').value),
-      cholesterol: Number(document.getElementById('r_cholesterol').value),
-      water: Number(document.getElementById('r_water').value)
-    };
-    const foods = getSavedFoods();
-    foods[normalizeKey(desc)] = macros;
-    setSavedFoods(foods);
-    renderSavedFoodsList();
-    showToast('✓ Food saved! Will auto-match next time.');
-    document.getElementById('saveFoodBtn').textContent = '✓ SAVED';
-    document.getElementById('saveFoodBtn').disabled = true;
-  }
-  function deleteSavedFood(key) {
-    const foods = getSavedFoods();
-    delete foods[key];
-    setSavedFoods(foods);
-    renderSavedFoodsList();
-    showToast('Food removed');
-  }
-  function renderSavedFoodsList() {
-    const list = document.getElementById('savedFoodsList');
-    const foods = getSavedFoods();
-    const keys = Object.keys(foods);
-    if (keys.length === 0) {
-      list.innerHTML = '<div style="font-size:0.72rem;color:var(--muted);padding:6px 0">No saved foods yet. Analyze a meal and click "Save this food".</div>';
-      return;
-    }
-    list.innerHTML = keys.map(k => {
-      const f = foods[k];
-      return `<div class="saved-food-item"><span>${f.food} (${f.calories} cal)</span><button class="saved-food-delete" onclick="deleteSavedFood('${k.replace(/'/g,"\\'")}')">remove</button></div>`;
-    }).join('');
-  }
-
-  // ─── Default webhook ───
-  const DEFAULT_WEBHOOK = 'https://connect.pabbly.com/workflow/sendwebhookdata/IjU3NjYwNTZlMDYzMTA0MzU1MjZmNTUzMzUxMzMi_pc';
-  const savedWebhook = localStorage.getItem('macro_webhook') || DEFAULT_WEBHOOK;
-  document.getElementById('webhookUrl').value = savedWebhook;
+  // Load saved webhook
+  const savedWebhook = localStorage.getItem('macro_webhook');
+  if (savedWebhook) document.getElementById('webhookUrl').value = savedWebhook;
 
   function toggleSettings() {
     const toggle = document.getElementById('settingsToggle');
@@ -564,7 +451,6 @@ If ready to estimate:
 
 Numbers only. Protein/fat/carbs/sugar/fiber in grams. Cholesterol in mg. Water in oz (0 unless it's a drink).`;
 
-  // ─── Main Analyze Flow: Saved → USDA → Claude ───
   async function analyze() {
     const webhook = document.getElementById('webhookUrl').value.trim();
     if (!webhook) { showToast('Enter your Pabbly webhook URL first', true); return; }
@@ -575,50 +461,17 @@ Numbers only. Protein/fat/carbs/sugar/fiber in grams. Cholesterol in mg. Water i
       showToast('Upload a photo first', true); return;
     }
 
-    document.getElementById('analyzeBtn').disabled = true;
-    document.getElementById('loading').style.display = 'block';
-    document.getElementById('results').style.display = 'none';
-    document.getElementById('actionRow').style.display = 'none';
-
-    // Photo mode always goes to Claude
-    if (currentMode === 'photo') {
-      document.getElementById('loadingMsg').textContent = 'analyzing photo...';
-      const userContent = [
+    let userContent;
+    if (currentMode==='text') {
+      userContent = `Meal type: ${selectedMeal}. Food: ${document.getElementById('mealText').value.trim()}`;
+    } else {
+      userContent = [
         { type:'image', source:{ type:'base64', media_type:photoMediaType, data:photoBase64 } },
         { type:'text', text:`This is my ${selectedMeal}. Analyze the macros.` }
       ];
-      conversationHistory = [{ role:'user', content: userContent }];
-      lastSource = 'ai';
-      await callClaude();
-      return;
     }
-
-    const input = document.getElementById('mealText').value.trim();
-
-    // Step 1: Check saved foods
-    document.getElementById('loadingMsg').textContent = 'checking saved foods...';
-    const saved = findSavedFood(input);
-    if (saved) {
-      lastSource = 'saved';
-      showResults(saved);
-      return;
-    }
-
-    // Step 2: AI estimation
-    document.getElementById('loadingMsg').textContent = 'analyzing meal...';
-    const userContent = `Meal type: ${selectedMeal}. Food: ${input}`;
     conversationHistory = [{ role:'user', content: userContent }];
-    lastSource = 'ai';
     await callClaude();
-  }
-
-  function showResults(macros) {
-    populateResults(macros);
-    document.getElementById('results').style.display = 'block';
-    document.getElementById('actionRow').style.display = 'flex';
-    document.getElementById('loading').style.display = 'none';
-    document.getElementById('analyzeBtn').disabled = false;
-    document.getElementById('results').scrollIntoView({ behavior:'smooth', block:'nearest' });
   }
 
   async function submitClarification() {
@@ -633,8 +486,14 @@ Numbers only. Protein/fat/carbs/sugar/fiber in grams. Cholesterol in mg. Water i
   }
 
   async function callClaude() {
+    document.getElementById('analyzeBtn').disabled = true;
+    document.getElementById('loading').style.display = 'block';
+    document.getElementById('results').style.display = 'none';
+    document.getElementById('actionRow').style.display = 'none';
+    document.getElementById('loadingMsg').textContent = 'analyzing meal...';
+
     try {
-      const res = await fetch('/api/analyze', {
+      const res = await fetch('https://api.anthropic.com/v1/messages', {
         method:'POST',
         headers:{'Content-Type':'application/json'},
         body: JSON.stringify({
@@ -651,7 +510,10 @@ Numbers only. Protein/fat/carbs/sugar/fiber in grams. Cholesterol in mg. Water i
         document.getElementById('clarifyBox').style.display = 'block';
         document.getElementById('clarifyBox').scrollIntoView({ behavior:'smooth', block:'nearest' });
       } else {
-        showResults(parsed);
+        populateResults(parsed);
+        document.getElementById('results').style.display = 'block';
+        document.getElementById('actionRow').style.display = 'flex';
+        document.getElementById('results').scrollIntoView({ behavior:'smooth', block:'nearest' });
       }
     } catch(err) {
       showToast('Error analyzing meal. Try again.', true);
@@ -663,23 +525,15 @@ Numbers only. Protein/fat/carbs/sugar/fiber in grams. Cholesterol in mg. Water i
 
   function populateResults(m) {
     document.getElementById('foodDesc').textContent    = m.food;
-    document.getElementById('r_calories').value        = Math.round(m.calories);
-    document.getElementById('r_protein').value         = Math.round(m.protein);
-    document.getElementById('r_fat').value             = Math.round(m.fat);
-    document.getElementById('r_carbs').value           = Math.round(m.carbs);
-    document.getElementById('r_sugar').value           = Math.round(m.sugar || 0);
-    document.getElementById('r_fiber').value           = Math.round(m.fiber || 0);
-    document.getElementById('r_cholesterol').value     = Math.round(m.cholesterol || 0);
-    document.getElementById('r_water').value           = Math.round(m.water || 0);
+    document.getElementById('r_calories').value        = m.calories;
+    document.getElementById('r_protein').value         = m.protein;
+    document.getElementById('r_fat').value             = m.fat;
+    document.getElementById('r_carbs').value           = m.carbs;
+    document.getElementById('r_sugar').value           = m.sugar;
+    document.getElementById('r_fiber').value           = m.fiber;
+    document.getElementById('r_cholesterol').value     = m.cholesterol;
+    document.getElementById('r_water').value           = m.water;
     document.getElementById('mealTypeLabel').textContent = selectedMeal.toUpperCase();
-    // Source badge
-    const badge = document.getElementById('sourceBadge');
-    if (lastSource === 'saved') { badge.textContent = 'SAVED'; badge.className = 'source-badge saved'; }
-    else { badge.textContent = 'AI EST.'; badge.className = 'source-badge ai'; }
-    // Save food button
-    const btn = document.getElementById('saveFoodBtn');
-    if (lastSource === 'saved') { btn.style.display = 'none'; }
-    else { btn.style.display = 'block'; btn.textContent = '+ SAVE THIS FOOD FOR NEXT TIME'; btn.disabled = false; }
   }
 
   function cancelLog() {
@@ -695,7 +549,6 @@ Numbers only. Protein/fat/carbs/sugar/fiber in grams. Cholesterol in mg. Water i
     const entry = {
       timestamp: ts, meal: selectedMeal,
       food:        document.getElementById('foodDesc').textContent,
-      source:      lastSource,
       calories:    Number(document.getElementById('r_calories').value),
       protein:     Number(document.getElementById('r_protein').value),
       fat:         Number(document.getElementById('r_fat').value),
@@ -768,7 +621,7 @@ Cal ${daily.calories}, Protein ${daily.protein}g, Carbs ${daily.carbs}g, Fat ${d
 
 Write a short coaching message (2 sentences max). Be direct and specific — call out what's on track, what needs attention, or suggest a specific food to fill a gap. No emojis, no markdown. Return only the message.`;
 
-      const res = await fetch('/api/analyze', {
+      const res = await fetch('https://api.anthropic.com/v1/messages', {
         method:'POST', headers:{'Content-Type':'application/json'},
         body: JSON.stringify({ model:'claude-sonnet-4-20250514', max_tokens:100, messages:[{role:'user',content:prompt}] })
       });
@@ -808,9 +661,6 @@ Write a short coaching message (2 sentences max). Be direct and specific — cal
     t.classList.add('show');
     setTimeout(() => t.classList.remove('show'), 3000);
   }
-
-  // Init saved foods list
-  renderSavedFoodsList();
 </script>
 </body>
 </html>
