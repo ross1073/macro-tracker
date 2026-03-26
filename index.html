@@ -431,7 +431,6 @@ Numbers only. Protein/fat/carbs/sugar/fiber in grams. Cholesterol in mg. Water i
 
   async function analyze() {
     const webhook = localStorage.getItem('macro_webhook');
-    if (!webhook) { showToast('Set your webhook URL in Settings first', true); return; }
     if (currentMode==='text' && !document.getElementById('mealText').value.trim()) {
       showToast('Describe your meal first', true); return;
     }
@@ -634,7 +633,6 @@ Write a short coaching message (2 sentences max). Be direct and specific — cal
 
   async function quickLog(key) {
     const webhook = localStorage.getItem('macro_webhook');
-    if (!webhook) { showToast('Set your webhook URL in Settings first', true); return; }
     const fav = FAVORITES[key];
     const n = new Date();
     const ts = `${n.getFullYear()}-${pad(n.getMonth()+1)}-${pad(n.getDate())} ${pad(n.getHours())}:${pad(n.getMinutes())}:${pad(n.getSeconds())}`;
