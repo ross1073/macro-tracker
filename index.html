@@ -110,6 +110,29 @@
     font-size: 0.75rem; font-weight: 700; cursor: pointer;
   }
   .settings-save:hover { opacity: 0.85; }
+  .quick-log { margin-bottom: 18px; }
+  .quick-log-header {
+    font-family: 'Space Mono', monospace; font-size: 0.72rem;
+    color: var(--muted); letter-spacing: 0.08em; text-transform: uppercase;
+    margin-bottom: 8px;
+  }
+  .quick-log-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+  .quick-btn {
+    display: flex; align-items: center; gap: 10px;
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: 10px; padding: 12px; cursor: pointer; transition: all 0.15s;
+    text-align: left;
+  }
+  .quick-btn:hover { border-color: var(--accent); background: var(--surface2); }
+  .quick-btn:active { transform: scale(0.97); }
+  .quick-btn .q-icon { font-size: 1.3rem; flex-shrink: 0; }
+  .quick-btn .q-info { flex: 1; min-width: 0; }
+  .quick-btn .q-name {
+    font-family: 'Space Mono', monospace; font-size: 0.72rem;
+    color: var(--text); font-weight: 700; white-space: nowrap;
+    overflow: hidden; text-overflow: ellipsis;
+  }
+  .quick-btn .q-cal { font-size: 0.65rem; color: var(--muted); font-family: 'Space Mono', monospace; }
   .meal-selector { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 18px; }
   .meal-pill {
     padding: 6px 14px; border-radius: 20px; border: 1px solid var(--border);
@@ -284,16 +307,26 @@
     <div class="coach-message" id="coachMsg">Log your first meal to get personalized feedback.</div>
   </div>
 
-  <!-- Settings drawer -->
-  <div class="settings-drawer">
-    <button class="settings-toggle" id="settingsToggle" onclick="toggleSettings()">
-      <span>⚙ Settings</span>
-      <span class="arrow">▾</span>
-    </button>
-    <div class="settings-body" id="settingsBody">
-      <label>Pabbly Webhook URL</label>
-      <input type="text" id="webhookUrl" placeholder="https://connect.pabbly.com/workflow/sendwebhookdata/..." />
-      <button class="settings-save" onclick="saveSettings()">SAVE</button>
+  <!-- Quick Log Favorites -->
+  <div class="quick-log">
+    <div class="quick-log-header">QUICK LOG</div>
+    <div class="quick-log-grid">
+      <button class="quick-btn" onclick="quickLog('perk')">
+        <span class="q-icon">☕</span>
+        <div class="q-info"><div class="q-name">Perk</div><div class="q-cal">80 cal · 9g pro</div></div>
+      </button>
+      <button class="quick-btn" onclick="quickLog('shake')">
+        <span class="q-icon">🥛</span>
+        <div class="q-info"><div class="q-name">Protein Shake</div><div class="q-cal">334 cal · 42g pro</div></div>
+      </button>
+      <button class="quick-btn" onclick="quickLog('pudding')">
+        <span class="q-icon">🍫</span>
+        <div class="q-info"><div class="q-name">Misery Pudding</div><div class="q-cal">310 cal · 52g pro</div></div>
+      </button>
+      <button class="quick-btn" onclick="quickLog('water')">
+        <span class="q-icon">💧</span>
+        <div class="q-info"><div class="q-name">Water 12oz</div><div class="q-cal">0 cal</div></div>
+      </button>
     </div>
   </div>
 
@@ -369,6 +402,19 @@
   <div class="action-row" id="actionRow" style="display:none">
     <button class="btn-cancel" onclick="cancelLog()">✕ Cancel</button>
     <button class="btn-log" id="logBtn" onclick="logToSheet()">✓ CONFIRM & LOG →</button>
+  </div>
+
+  <!-- Settings drawer -->
+  <div class="settings-drawer">
+    <button class="settings-toggle" id="settingsToggle" onclick="toggleSettings()">
+      <span>⚙ Settings</span>
+      <span class="arrow">▾</span>
+    </button>
+    <div class="settings-body" id="settingsBody">
+      <label>Pabbly Webhook URL</label>
+      <input type="text" id="webhookUrl" placeholder="https://connect.pabbly.com/workflow/sendwebhookdata/..." />
+      <button class="settings-save" onclick="saveSettings()">SAVE</button>
+    </div>
   </div>
 
 </div>
@@ -452,8 +498,8 @@ If ready to estimate:
 Numbers only. Protein/fat/carbs/sugar/fiber in grams. Cholesterol in mg. Water in oz (0 unless it's a drink).`;
 
   async function analyze() {
-    const webhook = document.getElementById('webhookUrl').value.trim();
-    if (!webhook) { showToast('Enter your Pabbly webhook URL first', true); return; }
+    const webhook = localStorage.getItem('macro_webhook');
+    if (!webhook) { showToast('Set your webhook URL in Settings first', true); return; }
     if (currentMode==='text' && !document.getElementById('mealText').value.trim()) {
       showToast('Describe your meal first', true); return;
     }
@@ -490,19 +536,24 @@ Numbers only. Protein/fat/carbs/sugar/fiber in grams. Cholesterol in mg. Water i
     document.getElementById('loading').style.display = 'block';
     document.getElementById('results').style.display = 'none';
     document.getElementById('actionRow').style.display = 'none';
-    document.getElementById('loadingMsg').textContent = 'analyzing meal...';
+    document.getElementById('loadingMsg').textContent = 'searching nutrition data...';
 
     try {
-      const res = await fetch('https://api.anthropic.com/v1/messages', {
+      const res = await fetch('/api/analyze', {
         method:'POST',
         headers:{'Content-Type':'application/json'},
         body: JSON.stringify({
           model:'claude-sonnet-4-20250514', max_tokens:1000,
-          system: SYSTEM, messages: conversationHistory
+          system: SYSTEM,
+          tools: [{ type:'web_search_20250305', name:'web_search', max_uses: 3 }],
+          messages: conversationHistory
         })
       });
       const data = await res.json();
-      const raw = data.content[0].text.replace(/```json|```/g,'').trim();
+      // With web search, the final text block may not be content[0]
+      const textBlock = data.content.filter(b => b.type === 'text').pop();
+      if (!textBlock) throw new Error('No text response');
+      const raw = textBlock.text.replace(/```json|```/g,'').trim();
       const parsed = JSON.parse(raw);
 
       if (parsed.status === 'clarify') {
@@ -542,7 +593,7 @@ Numbers only. Protein/fat/carbs/sugar/fiber in grams. Cholesterol in mg. Water i
   }
 
   async function logToSheet() {
-    const webhook = document.getElementById('webhookUrl').value.trim();
+    const webhook = localStorage.getItem('macro_webhook');
     document.getElementById('logBtn').disabled = true;
     const n = new Date();
     const ts = `${n.getFullYear()}-${pad(n.getMonth()+1)}-${pad(n.getDate())} ${pad(n.getHours())}:${pad(n.getMinutes())}:${pad(n.getSeconds())}`;
@@ -621,12 +672,13 @@ Cal ${daily.calories}, Protein ${daily.protein}g, Carbs ${daily.carbs}g, Fat ${d
 
 Write a short coaching message (2 sentences max). Be direct and specific — call out what's on track, what needs attention, or suggest a specific food to fill a gap. No emojis, no markdown. Return only the message.`;
 
-      const res = await fetch('https://api.anthropic.com/v1/messages', {
+      const res = await fetch('/api/analyze', {
         method:'POST', headers:{'Content-Type':'application/json'},
         body: JSON.stringify({ model:'claude-sonnet-4-20250514', max_tokens:100, messages:[{role:'user',content:prompt}] })
       });
       const data = await res.json();
-      const msg = data.content[0].text.trim();
+      const textBlock = data.content.filter(b => b.type === 'text').pop();
+      const msg = textBlock ? textBlock.text.trim() : 'Keep logging meals to get coaching.';
       const el = document.getElementById('coachMsg');
       el.textContent = msg;
       el.className = 'coach-message';
@@ -639,6 +691,33 @@ Write a short coaching message (2 sentences max). Be direct and specific — cal
         el.classList.add('warn');
       }
     } catch(e) { /* silent */ }
+  }
+
+  const FAVORITES = {
+    perk:    { food:'Perk coffee', calories:80, protein:9, fat:2.5, carbs:8, sugar:5, fiber:2, cholesterol:0, water:8 },
+    shake:   { food:'Protein Shake (Happy Day whey 2 scoops + 16oz 1% milk)', calories:334, protein:42, fat:7, carbs:28, sugar:27, fiber:1, cholesterol:20, water:16 },
+    pudding: { food:'Misery Pudding (2 scoops whey + 1 cup nonfat Greek yogurt + 1 tbsp granola)', calories:310, protein:52, fat:3, carbs:20, sugar:15, fiber:1, cholesterol:8, water:0 },
+    water:   { food:'Water 12oz', calories:0, protein:0, fat:0, carbs:0, sugar:0, fiber:0, cholesterol:0, water:12 }
+  };
+
+  async function quickLog(key) {
+    const webhook = localStorage.getItem('macro_webhook');
+    if (!webhook) { showToast('Set your webhook URL in Settings first', true); return; }
+    const fav = FAVORITES[key];
+    const n = new Date();
+    const ts = `${n.getFullYear()}-${pad(n.getMonth()+1)}-${pad(n.getDate())} ${pad(n.getHours())}:${pad(n.getMinutes())}:${pad(n.getSeconds())}`;
+    const entry = { timestamp: ts, meal: selectedMeal, ...fav };
+    try {
+      await fetch(webhook, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(entry), mode:'no-cors' });
+      daily.calories += fav.calories; daily.protein += fav.protein; daily.carbs += fav.carbs;
+      daily.fat += fav.fat; daily.fiber += fav.fiber; daily.sugar += fav.sugar;
+      daily.cholesterol += fav.cholesterol; daily.water += fav.water;
+      daily.meals.push(entry);
+      updateCoachPanel();
+      showToast(`✓ ${fav.food} logged!`);
+    } catch(err) {
+      showToast('Webhook error. Check Settings.', true);
+    }
   }
 
   function resetDay() {
