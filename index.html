@@ -430,7 +430,6 @@ If ready to estimate:
 Numbers only. Protein/fat/carbs/sugar/fiber in grams. Cholesterol in mg. Water in oz (0 unless it's a drink).`;
 
   async function analyze() {
-    const webhook = localStorage.getItem('macro_webhook');
     if (currentMode==='text' && !document.getElementById('mealText').value.trim()) {
       showToast('Describe your meal first', true); return;
     }
@@ -524,7 +523,6 @@ Numbers only. Protein/fat/carbs/sugar/fiber in grams. Cholesterol in mg. Water i
   }
 
   async function logToSheet() {
-    const webhook = localStorage.getItem('macro_webhook');
     document.getElementById('logBtn').disabled = true;
     const n = new Date();
     const ts = `${n.getFullYear()}-${pad(n.getMonth()+1)}-${pad(n.getDate())} ${pad(n.getHours())}:${pad(n.getMinutes())}:${pad(n.getSeconds())}`;
@@ -542,9 +540,9 @@ Numbers only. Protein/fat/carbs/sugar/fiber in grams. Cholesterol in mg. Water i
     };
 
     try {
-      await fetch(webhook, {
+      await fetch('/api/log', {
         method:'POST', headers:{'Content-Type':'application/json'},
-        body: JSON.stringify(entry), mode:'no-cors'
+        body: JSON.stringify(entry)
       });
 
       daily.calories    += entry.calories;
@@ -632,13 +630,12 @@ Write a short coaching message (2 sentences max). Be direct and specific — cal
   };
 
   async function quickLog(key) {
-    const webhook = localStorage.getItem('macro_webhook');
     const fav = FAVORITES[key];
     const n = new Date();
     const ts = `${n.getFullYear()}-${pad(n.getMonth()+1)}-${pad(n.getDate())} ${pad(n.getHours())}:${pad(n.getMinutes())}:${pad(n.getSeconds())}`;
     const entry = { timestamp: ts, meal: selectedMeal, ...fav };
     try {
-      await fetch(webhook, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(entry), mode:'no-cors' });
+      await fetch('/api/log', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(entry) });
       daily.calories += fav.calories; daily.protein += fav.protein; daily.carbs += fav.carbs;
       daily.fat += fav.fat; daily.fiber += fav.fiber; daily.sugar += fav.sugar;
       daily.cholesterol += fav.cholesterol; daily.water += fav.water;
