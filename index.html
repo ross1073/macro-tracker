@@ -99,14 +99,21 @@
     overflow: hidden; text-overflow: ellipsis;
   }
   .quick-btn .q-cal { font-size: 0.65rem; color: var(--muted); font-family: 'Space Mono', monospace; }
-  .meal-selector { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 18px; }
-  .meal-pill {
-    padding: 6px 14px; border-radius: 20px; border: 1px solid var(--border);
-    background: var(--surface); color: var(--muted);
-    font-size: 0.8rem; font-weight: 500; cursor: pointer; transition: all 0.15s;
+  .meal-indicator {
+    display: flex; align-items: baseline; gap: 8px;
+    padding: 8px 12px; margin-bottom: 18px;
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: 8px;
+    font-family: 'Space Mono', monospace; font-size: 0.72rem;
+    color: var(--muted); letter-spacing: 0.04em;
   }
-  .meal-pill:hover { border-color: var(--accent); color: var(--text); }
-  .meal-pill.active { background: var(--accent); color: #000; border-color: var(--accent); font-weight: 600; }
+  .meal-indicator strong {
+    color: var(--accent); font-weight: 700;
+    text-transform: uppercase; letter-spacing: 0.08em;
+  }
+  .meal-indicator .auto-hint {
+    margin-left: auto; font-size: 0.65rem; color: var(--muted); opacity: 0.7;
+  }
   .input-toggle {
     display: flex; background: var(--surface); border: 1px solid var(--border);
     border-radius: 8px; overflow: hidden; margin-bottom: 14px;
@@ -296,13 +303,11 @@
     </div>
   </div>
 
-  <!-- Meal type -->
-  <div class="meal-selector">
-    <div class="meal-pill active" data-meal="Breakfast">Breakfast</div>
-    <div class="meal-pill" data-meal="Lunch">Lunch</div>
-    <div class="meal-pill" data-meal="Dinner">Dinner</div>
-    <div class="meal-pill" data-meal="Snack">Snack</div>
-    <div class="meal-pill" data-meal="Hydration">Hydration</div>
+  <!-- Meal type (auto-detected from time of day) -->
+  <div class="meal-indicator">
+    <span>Logging as</span>
+    <strong id="mealIndicator">Breakfast</strong>
+    <span class="auto-hint">auto from time</span>
   </div>
 
   <!-- Input toggle -->
@@ -376,7 +381,7 @@
 <script>
   const TARGETS = { calories:2200, protein:150, carbs:220, fat:70, fiber:38, sugar:50, cholesterol:300 };
   let daily = { calories:0, protein:0, carbs:0, fat:0, fiber:0, sugar:0, cholesterol:0, water:0, meals:[] };
-  let currentMode = 'text', selectedMeal = 'Breakfast';
+  let currentMode = 'text';
   let photoBase64 = null, photoMediaType = null;
   let conversationHistory = [];
 
@@ -386,13 +391,23 @@
   document.getElementById('dateBadge').textContent =
     `${now.getFullYear()}-${pad(now.getMonth()+1)}-${pad(now.getDate())}`;
 
-  document.querySelectorAll('.meal-pill').forEach(pill => {
-    pill.addEventListener('click', () => {
-      document.querySelectorAll('.meal-pill').forEach(p => p.classList.remove('active'));
-      pill.classList.add('active');
-      selectedMeal = pill.dataset.meal;
-    });
-  });
+  // Auto-detect meal type from time of day.
+  // Windows: Breakfast 4:00–10:29, Lunch 10:30–14:29, Snack 14:30–16:59,
+  // Dinner 17:00–20:59, Snack 21:00–3:59.
+  function getMealForTime(d = new Date()) {
+    const t = d.getHours() * 60 + d.getMinutes();
+    if (t >= 4*60    && t < 10*60+30) return 'Breakfast';
+    if (t >= 10*60+30 && t < 14*60+30) return 'Lunch';
+    if (t >= 14*60+30 && t < 17*60)    return 'Snack';
+    if (t >= 17*60   && t < 21*60)    return 'Dinner';
+    return 'Snack';
+  }
+  function refreshMealIndicator() {
+    document.getElementById('mealIndicator').textContent = getMealForTime();
+  }
+  refreshMealIndicator();
+  // Re-check each minute so a session open across a boundary stays accurate.
+  setInterval(refreshMealIndicator, 60000);
 
   function switchInput(mode) {
     currentMode = mode;
@@ -437,13 +452,14 @@ Numbers only. Protein/fat/carbs/sugar/fiber in grams. Cholesterol in mg. Water i
       showToast('Upload a photo first', true); return;
     }
 
+    const meal = getMealForTime();
     let userContent;
     if (currentMode==='text') {
-      userContent = `Meal type: ${selectedMeal}. Food: ${document.getElementById('mealText').value.trim()}`;
+      userContent = `Meal type: ${meal}. Food: ${document.getElementById('mealText').value.trim()}`;
     } else {
       userContent = [
         { type:'image', source:{ type:'base64', media_type:photoMediaType, data:photoBase64 } },
-        { type:'text', text:`This is my ${selectedMeal}. Analyze the macros.` }
+        { type:'text', text:`This is my ${meal}. Analyze the macros.` }
       ];
     }
     conversationHistory = [{ role:'user', content: userContent }];
@@ -514,7 +530,7 @@ Numbers only. Protein/fat/carbs/sugar/fiber in grams. Cholesterol in mg. Water i
     document.getElementById('r_fiber').value           = m.fiber;
     document.getElementById('r_cholesterol').value     = m.cholesterol;
     document.getElementById('r_water').value           = m.water;
-    document.getElementById('mealTypeLabel').textContent = selectedMeal.toUpperCase();
+    document.getElementById('mealTypeLabel').textContent = getMealForTime().toUpperCase();
   }
 
   function cancelLog() {
@@ -527,7 +543,7 @@ Numbers only. Protein/fat/carbs/sugar/fiber in grams. Cholesterol in mg. Water i
     const n = new Date();
     const ts = `${n.getFullYear()}-${pad(n.getMonth()+1)}-${pad(n.getDate())} ${pad(n.getHours())}:${pad(n.getMinutes())}:${pad(n.getSeconds())}`;
     const entry = {
-      timestamp: ts, meal: selectedMeal,
+      timestamp: ts, meal: getMealForTime(n),
       food:        document.getElementById('foodDesc').textContent,
       calories:    Number(document.getElementById('r_calories').value),
       protein:     Number(document.getElementById('r_protein').value),
@@ -633,7 +649,9 @@ Write a short coaching message (2 sentences max). Be direct and specific — cal
     const fav = FAVORITES[key];
     const n = new Date();
     const ts = `${n.getFullYear()}-${pad(n.getMonth()+1)}-${pad(n.getDate())} ${pad(n.getHours())}:${pad(n.getMinutes())}:${pad(n.getSeconds())}`;
-    const entry = { timestamp: ts, meal: selectedMeal, ...fav };
+    // Water is always logged as Hydration; everything else follows time of day.
+    const mealType = key === 'water' ? 'Hydration' : getMealForTime(n);
+    const entry = { timestamp: ts, meal: mealType, ...fav };
     try {
       await fetch('/api/log', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(entry) });
       daily.calories += fav.calories; daily.protein += fav.protein; daily.carbs += fav.carbs;
