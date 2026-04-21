@@ -41,6 +41,18 @@
   }
   .header-left span { font-size: 0.72rem; color: var(--muted); font-family: 'Space Mono', monospace; }
   .date-badge { font-family: 'Space Mono', monospace; font-size: 0.7rem; color: var(--muted); text-align: right; }
+  .mode-toggle {
+    display: flex; gap: 6px; background: var(--surface); border: 1px solid var(--border);
+    border-radius: 10px; padding: 4px; margin-bottom: 18px;
+  }
+  .mode-btn {
+    flex: 1; padding: 10px; text-align: center;
+    font-family: 'Space Mono', monospace; font-size: 0.8rem; font-weight: 700;
+    letter-spacing: 0.06em; cursor: pointer; border: none; background: transparent;
+    color: var(--muted); border-radius: 7px; transition: all 0.15s;
+  }
+  .mode-btn.active { background: var(--accent); color: #000; }
+  .mode-btn:not(.active):hover { color: var(--text); }
   .quick-log { margin-bottom: 18px; }
   .quick-log-header {
     font-family: 'Space Mono', monospace; font-size: 0.72rem;
@@ -214,6 +226,15 @@
     <div class="date-badge" id="dateBadge"></div>
   </header>
 
+  <!-- Top-level mode toggle -->
+  <div class="mode-toggle">
+    <button class="mode-btn active" id="modeMeal" onclick="switchMode('meal')">🍽 MEAL</button>
+    <button class="mode-btn" id="modeExercise" onclick="switchMode('exercise')">💪 EXERCISE</button>
+  </div>
+
+  <!-- MEAL MODE -->
+  <div id="mealMode">
+
   <!-- Quick Log Favorites -->
   <div class="quick-log">
     <div class="quick-log-header">QUICK LOG</div>
@@ -309,6 +330,40 @@
     <button class="btn-log" id="logBtn" onclick="logToSheet()">✓ CONFIRM & LOG →</button>
   </div>
 
+  </div><!-- /mealMode -->
+
+  <!-- EXERCISE MODE -->
+  <div id="exerciseMode" style="display:none">
+    <div class="input-area">
+      <textarea id="exerciseText" placeholder="e.g. ran 3 miles in about 30 minutes, or 45 min strength training (upper body)…"></textarea>
+    </div>
+
+    <button class="btn-analyze" id="exerciseAnalyzeBtn" onclick="analyzeExercise()">ANALYZE EXERCISE</button>
+
+    <div class="loading" id="exerciseLoading">
+      <div class="spinner"></div>
+      <p>estimating calories...</p>
+    </div>
+
+    <div class="results" id="exerciseResults">
+      <div class="results-header">
+        <h3>ESTIMATED BURN</h3>
+        <span style="font-size:0.72rem;color:var(--muted);font-family:'Space Mono',monospace">EXERCISE</span>
+      </div>
+      <div class="food-desc" id="exerciseDesc"></div>
+      <div class="macro-grid" style="grid-template-columns: repeat(2, 1fr);">
+        <div class="macro-cell calories"><label>Duration min</label><input type="number" id="ex_duration" /></div>
+        <div class="macro-cell calories"><label>Calories Burned</label><input type="number" id="ex_calories" /></div>
+      </div>
+      <p class="edit-hint">tap any value to edit before confirming</p>
+    </div>
+
+    <div class="action-row" id="exerciseActionRow" style="display:none">
+      <button class="btn-cancel" onclick="cancelExercise()">✕ Cancel</button>
+      <button class="btn-log" id="exerciseLogBtn" onclick="logExercise()">✓ CONFIRM & LOG →</button>
+    </div>
+  </div><!-- /exerciseMode -->
+
 </div>
 <div class="toast" id="toast"></div>
 
@@ -348,6 +403,14 @@
     document.getElementById('photoArea').style.display  = mode==='photo' ? 'block' : 'none';
     document.getElementById('btnText').classList.toggle('active', mode==='text');
     document.getElementById('btnPhoto').classList.toggle('active', mode==='photo');
+  }
+
+  function switchMode(mode) {
+    const isMeal = mode === 'meal';
+    document.getElementById('mealMode').style.display     = isMeal ? 'block' : 'none';
+    document.getElementById('exerciseMode').style.display = isMeal ? 'none'  : 'block';
+    document.getElementById('modeMeal').classList.toggle('active', isMeal);
+    document.getElementById('modeExercise').classList.toggle('active', !isMeal);
   }
 
   function handlePhoto(input) {
@@ -509,6 +572,119 @@ Numbers only. Protein/fat/carbs/sugar/fiber in grams. Cholesterol in mg. Water i
       showToast('Webhook error. Check URL.', true);
     } finally {
       document.getElementById('logBtn').disabled = false;
+    }
+  }
+
+  // ---------- Exercise flow ----------
+  const EXERCISE_SYSTEM = `You are a fitness calorie estimator for a 52-year-old male, 6 feet tall, 182 lbs.
+
+Given a description of an exercise session, return an estimate of the activity, duration in minutes, and calories burned. Use standard MET values for the estimate.
+
+If the description is too vague to estimate (e.g. "I worked out", "did some cardio"), ask ONE short clarifying question.
+
+Respond ONLY in one of these two JSON formats — no markdown, no explanation:
+
+If clarification needed:
+{"status":"clarify","question":"your question"}
+
+If ready to estimate:
+{"status":"estimate","activity":"concise activity name","duration":0,"calories":0,"notes":""}
+
+Numbers only. Duration in minutes (integer). Calories integer. Notes optional, 1 short phrase max.`;
+
+  let exerciseHistory = [];
+
+  async function analyzeExercise() {
+    const text = document.getElementById('exerciseText').value.trim();
+    if (!text) { showToast('Describe the exercise first', true); return; }
+    exerciseHistory = [{ role:'user', content: text }];
+    await callExerciseClaude();
+  }
+
+  async function callExerciseClaude() {
+    document.getElementById('exerciseAnalyzeBtn').disabled = true;
+    document.getElementById('exerciseLoading').style.display = 'block';
+    document.getElementById('exerciseResults').style.display = 'none';
+    document.getElementById('exerciseActionRow').style.display = 'none';
+
+    try {
+      const res = await fetch('/api/analyze', {
+        method:'POST',
+        headers:{'Content-Type':'application/json'},
+        body: JSON.stringify({
+          model:'claude-sonnet-4-20250514', max_tokens:400,
+          system: EXERCISE_SYSTEM,
+          messages: exerciseHistory
+        })
+      });
+      const data = await res.json();
+      const textBlock = data.content.filter(b => b.type === 'text').pop();
+      if (!textBlock) throw new Error('No text response');
+      const raw = textBlock.text.replace(/```json|```/g,'').trim();
+      const parsed = JSON.parse(raw);
+
+      if (parsed.status === 'clarify') {
+        // Simple inline prompt — reuse clarify box UX via a quick window.prompt to keep it small.
+        const answer = window.prompt(parsed.question);
+        if (!answer) { showToast('Cancelled', true); return; }
+        exerciseHistory.push({ role:'assistant', content: JSON.stringify(parsed) });
+        exerciseHistory.push({ role:'user', content: answer });
+        await callExerciseClaude();
+        return;
+      }
+
+      document.getElementById('exerciseDesc').textContent = parsed.activity + (parsed.notes ? ` — ${parsed.notes}` : '');
+      document.getElementById('ex_duration').value = parsed.duration;
+      document.getElementById('ex_calories').value = parsed.calories;
+      document.getElementById('exerciseResults').style.display = 'block';
+      document.getElementById('exerciseActionRow').style.display = 'flex';
+      document.getElementById('exerciseResults').scrollIntoView({ behavior:'smooth', block:'nearest' });
+    } catch(err) {
+      showToast('Error analyzing exercise. Try again.', true);
+    } finally {
+      document.getElementById('exerciseLoading').style.display = 'none';
+      document.getElementById('exerciseAnalyzeBtn').disabled = false;
+    }
+  }
+
+  function cancelExercise() {
+    document.getElementById('exerciseResults').style.display = 'none';
+    document.getElementById('exerciseActionRow').style.display = 'none';
+  }
+
+  async function logExercise() {
+    document.getElementById('exerciseLogBtn').disabled = true;
+    const n = new Date();
+    const ts = `${n.getFullYear()}-${pad(n.getMonth()+1)}-${pad(n.getDate())} ${pad(n.getHours())}:${pad(n.getMinutes())}:${pad(n.getSeconds())}`;
+    const descEl = document.getElementById('exerciseDesc').textContent;
+    const [activity, ...rest] = descEl.split(' — ');
+    const entry = {
+      timestamp: ts,
+      activity: activity.trim(),
+      duration: Number(document.getElementById('ex_duration').value),
+      calories: Number(document.getElementById('ex_calories').value),
+      notes:    rest.join(' — ').trim()
+    };
+
+    try {
+      const res = await fetch('/api/log-exercise', {
+        method:'POST', headers:{'Content-Type':'application/json'},
+        body: JSON.stringify(entry)
+      });
+      const data = await res.json().catch(() => ({}));
+      if (data.error) throw new Error(data.error);
+
+      showToast('✓ Exercise logged!');
+      setTimeout(() => {
+        document.getElementById('exerciseResults').style.display = 'none';
+        document.getElementById('exerciseActionRow').style.display = 'none';
+        document.getElementById('exerciseText').value = '';
+        exerciseHistory = [];
+      }, 1200);
+    } catch(err) {
+      showToast(err.message || 'Log failed. Check APPS_SCRIPT_URL.', true);
+    } finally {
+      document.getElementById('exerciseLogBtn').disabled = false;
     }
   }
 
