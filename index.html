@@ -41,41 +41,6 @@
   }
   .header-left span { font-size: 0.72rem; color: var(--muted); font-family: 'Space Mono', monospace; }
   .date-badge { font-family: 'Space Mono', monospace; font-size: 0.7rem; color: var(--muted); text-align: right; }
-  .coach-panel {
-    background: var(--surface); border: 1px solid var(--border);
-    border-radius: 12px; padding: 16px; margin-bottom: 20px;
-  }
-  .coach-header {
-    display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;
-  }
-  .coach-header h2 {
-    font-family: 'Space Mono', monospace; font-size: 0.75rem;
-    color: var(--accent); letter-spacing: 0.08em; text-transform: uppercase;
-  }
-  .coach-reset {
-    font-size: 0.7rem; color: var(--muted); cursor: pointer;
-    font-family: 'Space Mono', monospace; background: none; border: none; text-decoration: underline;
-  }
-  .coach-reset:hover { color: var(--text); }
-  .macro-bars { display: flex; flex-direction: column; gap: 8px; margin-bottom: 14px; }
-  .bar-row { display: flex; align-items: center; gap: 10px; }
-  .bar-label { font-size: 0.72rem; font-family: 'Space Mono', monospace; color: var(--muted); width: 70px; flex-shrink: 0; }
-  .bar-track { flex: 1; height: 6px; background: var(--surface2); border-radius: 3px; overflow: hidden; }
-  .bar-fill { height: 100%; border-radius: 3px; transition: width 0.4s cubic-bezier(0.4,0,0.2,1); }
-  .bar-fill.calories { background: var(--accent); }
-  .bar-fill.protein  { background: var(--protein-color); }
-  .bar-fill.carbs    { background: var(--carb-color); }
-  .bar-fill.fat      { background: var(--fat-color); }
-  .bar-fill.over     { background: var(--danger); }
-  .bar-value { font-size: 0.7rem; font-family: 'Space Mono', monospace; color: var(--text); width: 82px; text-align: right; flex-shrink: 0; }
-  .coach-message {
-    background: var(--surface2); border-radius: 8px; padding: 10px 14px;
-    font-size: 0.83rem; color: var(--text); line-height: 1.5;
-    border-left: 3px solid var(--accent); min-height: 38px; font-style: italic;
-  }
-  .coach-message.warn  { border-left-color: var(--warn); }
-  .coach-message.alert { border-left-color: var(--danger); }
-  .coach-message.good  { border-left-color: var(--success); }
   .quick-log { margin-bottom: 18px; }
   .quick-log-header {
     font-family: 'Space Mono', monospace; font-size: 0.72rem;
@@ -249,37 +214,6 @@
     <div class="date-badge" id="dateBadge"></div>
   </header>
 
-  <!-- Daily Coach Panel -->
-  <div class="coach-panel">
-    <div class="coach-header">
-      <h2>TODAY'S PROGRESS</h2>
-      <button class="coach-reset" onclick="resetDay()">reset day</button>
-    </div>
-    <div class="macro-bars">
-      <div class="bar-row">
-        <span class="bar-label">Calories</span>
-        <div class="bar-track"><div class="bar-fill calories" id="bar_cal" style="width:0%"></div></div>
-        <span class="bar-value" id="val_cal">0 / 2200</span>
-      </div>
-      <div class="bar-row">
-        <span class="bar-label">Protein</span>
-        <div class="bar-track"><div class="bar-fill protein" id="bar_pro" style="width:0%"></div></div>
-        <span class="bar-value" id="val_pro">0g / 150g</span>
-      </div>
-      <div class="bar-row">
-        <span class="bar-label">Carbs</span>
-        <div class="bar-track"><div class="bar-fill carbs" id="bar_carb" style="width:0%"></div></div>
-        <span class="bar-value" id="val_carb">0g / 220g</span>
-      </div>
-      <div class="bar-row">
-        <span class="bar-label">Fat</span>
-        <div class="bar-track"><div class="bar-fill fat" id="bar_fat" style="width:0%"></div></div>
-        <span class="bar-value" id="val_fat">0g / 70g</span>
-      </div>
-    </div>
-    <div class="coach-message" id="coachMsg">Log your first meal to get personalized feedback.</div>
-  </div>
-
   <!-- Quick Log Favorites -->
   <div class="quick-log">
     <div class="quick-log-header">QUICK LOG</div>
@@ -380,7 +314,6 @@
 
 <script>
   const TARGETS = { calories:2200, protein:150, carbs:220, fat:70, fiber:38, sugar:50, cholesterol:300 };
-  let daily = { calories:0, protein:0, carbs:0, fat:0, fiber:0, sugar:0, cholesterol:0, water:0, meals:[] };
   let currentMode = 'text';
   let photoBase64 = null, photoMediaType = null;
   let conversationHistory = [];
@@ -561,17 +494,6 @@ Numbers only. Protein/fat/carbs/sugar/fiber in grams. Cholesterol in mg. Water i
         body: JSON.stringify(entry)
       });
 
-      daily.calories    += entry.calories;
-      daily.protein     += entry.protein;
-      daily.carbs       += entry.carbs;
-      daily.fat         += entry.fat;
-      daily.fiber       += entry.fiber;
-      daily.sugar       += entry.sugar;
-      daily.cholesterol += entry.cholesterol;
-      daily.water       += entry.water;
-      daily.meals.push(entry);
-
-      updateCoachPanel();
       showToast('✓ Logged to sheet!');
 
       setTimeout(() => {
@@ -590,54 +512,6 @@ Numbers only. Protein/fat/carbs/sugar/fiber in grams. Cholesterol in mg. Water i
     }
   }
 
-  function updateCoachPanel() {
-    const setBar = (id, cur, target) => {
-      const pct = Math.min((cur/target)*100, 100);
-      const el = document.getElementById('bar_'+id);
-      el.style.width = pct+'%';
-      el.classList.toggle('over', cur > target);
-    };
-    setBar('cal',  daily.calories, TARGETS.calories);
-    setBar('pro',  daily.protein,  TARGETS.protein);
-    setBar('carb', daily.carbs,    TARGETS.carbs);
-    setBar('fat',  daily.fat,      TARGETS.fat);
-    document.getElementById('val_cal').textContent  = `${daily.calories} / ${TARGETS.calories}`;
-    document.getElementById('val_pro').textContent  = `${daily.protein}g / ${TARGETS.protein}g`;
-    document.getElementById('val_carb').textContent = `${daily.carbs}g / ${TARGETS.carbs}g`;
-    document.getElementById('val_fat').textContent  = `${daily.fat}g / ${TARGETS.fat}g`;
-    fetchCoachMessage();
-  }
-
-  async function fetchCoachMessage() {
-    try {
-      const prompt = `User: 52yo male, 6ft, 182lbs.
-Daily targets: Cal ${TARGETS.calories}, Protein ${TARGETS.protein}g, Carbs ${TARGETS.carbs}g, Fat ${TARGETS.fat}g, Fiber ${TARGETS.fiber}g, Sugar <${TARGETS.sugar}g, Cholesterol <${TARGETS.cholesterol}mg.
-Today so far (${daily.meals.length} meals logged — ${daily.meals.map(m=>m.meal).join(', ')}):
-Cal ${daily.calories}, Protein ${daily.protein}g, Carbs ${daily.carbs}g, Fat ${daily.fat}g, Fiber ${daily.fiber}g, Sugar ${daily.sugar}g, Cholesterol ${daily.cholesterol}mg, Water ${daily.water}oz.
-
-Write a short coaching message (2 sentences max). Be direct and specific — call out what's on track, what needs attention, or suggest a specific food to fill a gap. No emojis, no markdown. Return only the message.`;
-
-      const res = await fetch('/api/analyze', {
-        method:'POST', headers:{'Content-Type':'application/json'},
-        body: JSON.stringify({ model:'claude-sonnet-4-20250514', max_tokens:100, messages:[{role:'user',content:prompt}] })
-      });
-      const data = await res.json();
-      const textBlock = data.content.filter(b => b.type === 'text').pop();
-      const msg = textBlock ? textBlock.text.trim() : 'Keep logging meals to get coaching.';
-      const el = document.getElementById('coachMsg');
-      el.textContent = msg;
-      el.className = 'coach-message';
-      const l = msg.toLowerCase();
-      if (l.includes('great') || l.includes('excellent') || l.includes('on track') || l.includes('solid') || l.includes('nice')) {
-        el.classList.add('good');
-      } else if (l.includes('high') || l.includes('over') || l.includes('too much') || l.includes('watch')) {
-        el.classList.add('alert');
-      } else {
-        el.classList.add('warn');
-      }
-    } catch(e) { /* silent */ }
-  }
-
   const FAVORITES = {
     perk:    { food:'Perk coffee', calories:80, protein:9, fat:2.5, carbs:8, sugar:5, fiber:2, cholesterol:0, water:8 },
     shake:   { food:'Protein Shake (Happy Day whey 2 scoops + 16oz 1% milk)', calories:334, protein:42, fat:7, carbs:28, sugar:27, fiber:1, cholesterol:20, water:16 },
@@ -654,29 +528,10 @@ Write a short coaching message (2 sentences max). Be direct and specific — cal
     const entry = { timestamp: ts, meal: mealType, ...fav };
     try {
       await fetch('/api/log', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(entry) });
-      daily.calories += fav.calories; daily.protein += fav.protein; daily.carbs += fav.carbs;
-      daily.fat += fav.fat; daily.fiber += fav.fiber; daily.sugar += fav.sugar;
-      daily.cholesterol += fav.cholesterol; daily.water += fav.water;
-      daily.meals.push(entry);
-      updateCoachPanel();
       showToast(`✓ ${fav.food} logged!`);
     } catch(err) {
       showToast('Webhook error. Check Settings.', true);
     }
-  }
-
-  function resetDay() {
-    daily = { calories:0, protein:0, carbs:0, fat:0, fiber:0, sugar:0, cholesterol:0, water:0, meals:[] };
-    ['cal','pro','carb','fat'].forEach(id => {
-      const b = document.getElementById('bar_'+id);
-      b.style.width='0%'; b.classList.remove('over');
-    });
-    document.getElementById('val_cal').textContent  = `0 / ${TARGETS.calories}`;
-    document.getElementById('val_pro').textContent  = `0g / ${TARGETS.protein}g`;
-    document.getElementById('val_carb').textContent = `0g / ${TARGETS.carbs}g`;
-    document.getElementById('val_fat').textContent  = `0g / ${TARGETS.fat}g`;
-    document.getElementById('coachMsg').textContent = 'Log your first meal to get personalized feedback.';
-    document.getElementById('coachMsg').className = 'coach-message';
   }
 
   function showToast(msg, isError=false) {
