@@ -539,6 +539,7 @@ Numbers only. Protein/fat/carbs/sugar/fiber in grams. Cholesterol in mg. Water i
     const n = new Date();
     const ts = `${n.getFullYear()}-${pad(n.getMonth()+1)}-${pad(n.getDate())} ${pad(n.getHours())}:${pad(n.getMinutes())}:${pad(n.getSeconds())}`;
     const entry = {
+      type: 'meal',
       timestamp: ts, meal: getMealForTime(n),
       food:        document.getElementById('foodDesc').textContent,
       calories:    Number(document.getElementById('r_calories').value),
@@ -659,6 +660,7 @@ Numbers only. Duration in minutes (integer). Calories integer. Notes optional, 1
     const descEl = document.getElementById('exerciseDesc').textContent;
     const [activity, ...rest] = descEl.split(' — ');
     const entry = {
+      type: 'exercise',
       timestamp: ts,
       activity: activity.trim(),
       duration: Number(document.getElementById('ex_duration').value),
@@ -667,12 +669,10 @@ Numbers only. Duration in minutes (integer). Calories integer. Notes optional, 1
     };
 
     try {
-      const res = await fetch('/api/log-exercise', {
+      await fetch('/api/log', {
         method:'POST', headers:{'Content-Type':'application/json'},
         body: JSON.stringify(entry)
       });
-      const data = await res.json().catch(() => ({}));
-      if (data.error) throw new Error(data.error);
 
       showToast('✓ Exercise logged!');
       setTimeout(() => {
@@ -682,7 +682,7 @@ Numbers only. Duration in minutes (integer). Calories integer. Notes optional, 1
         exerciseHistory = [];
       }, 1200);
     } catch(err) {
-      showToast(err.message || 'Log failed. Check APPS_SCRIPT_URL.', true);
+      showToast('Webhook error. Check Pabbly.', true);
     } finally {
       document.getElementById('exerciseLogBtn').disabled = false;
     }
@@ -701,7 +701,7 @@ Numbers only. Duration in minutes (integer). Calories integer. Notes optional, 1
     const ts = `${n.getFullYear()}-${pad(n.getMonth()+1)}-${pad(n.getDate())} ${pad(n.getHours())}:${pad(n.getMinutes())}:${pad(n.getSeconds())}`;
     // Water is always logged as Hydration; everything else follows time of day.
     const mealType = key === 'water' ? 'Hydration' : getMealForTime(n);
-    const entry = { timestamp: ts, meal: mealType, ...fav };
+    const entry = { type: 'meal', timestamp: ts, meal: mealType, ...fav };
     try {
       await fetch('/api/log', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(entry) });
       showToast(`✓ ${fav.food} logged!`);
