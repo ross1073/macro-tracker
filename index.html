@@ -485,13 +485,17 @@ Numbers only. Protein/fat/carbs/sugar/fiber in grams. Cholesterol in mg. Water i
         method:'POST',
         headers:{'Content-Type':'application/json'},
         body: JSON.stringify({
-          model:'claude-sonnet-4-20250514', max_tokens:1000,
+          model:'claude-sonnet-5', max_tokens:1000,
+          thinking:{ type:'disabled' },
           system: SYSTEM,
-          tools: [{ type:'web_search_20250305', name:'web_search', max_uses: 3 }],
+          tools: [{ type:'web_search_20260209', name:'web_search', max_uses: 3 }],
           messages: conversationHistory
         })
       });
       const data = await res.json();
+      if (!res.ok || data.error || !data.content) {
+        throw new Error(data?.error?.message || data?.error || `API error (${res.status})`);
+      }
       // With web search, the final text block may not be content[0]
       const textBlock = data.content.filter(b => b.type === 'text').pop();
       if (!textBlock) throw new Error('No text response');
@@ -509,7 +513,7 @@ Numbers only. Protein/fat/carbs/sugar/fiber in grams. Cholesterol in mg. Water i
         document.getElementById('results').scrollIntoView({ behavior:'smooth', block:'nearest' });
       }
     } catch(err) {
-      showToast('Error analyzing meal. Try again.', true);
+      showToast(`Error analyzing meal: ${err.message}`, true);
     } finally {
       document.getElementById('loading').style.display = 'none';
       document.getElementById('analyzeBtn').disabled = false;
@@ -613,12 +617,16 @@ Numbers only. Duration in minutes (integer). Calories integer. Notes optional, 1
         method:'POST',
         headers:{'Content-Type':'application/json'},
         body: JSON.stringify({
-          model:'claude-sonnet-4-20250514', max_tokens:400,
+          model:'claude-sonnet-5', max_tokens:400,
+          thinking:{ type:'disabled' },
           system: EXERCISE_SYSTEM,
           messages: exerciseHistory
         })
       });
       const data = await res.json();
+      if (!res.ok || data.error || !data.content) {
+        throw new Error(data?.error?.message || data?.error || `API error (${res.status})`);
+      }
       const textBlock = data.content.filter(b => b.type === 'text').pop();
       if (!textBlock) throw new Error('No text response');
       const raw = textBlock.text.replace(/```json|```/g,'').trim();
@@ -641,7 +649,7 @@ Numbers only. Duration in minutes (integer). Calories integer. Notes optional, 1
       document.getElementById('exerciseActionRow').style.display = 'flex';
       document.getElementById('exerciseResults').scrollIntoView({ behavior:'smooth', block:'nearest' });
     } catch(err) {
-      showToast('Error analyzing exercise. Try again.', true);
+      showToast(`Error analyzing exercise: ${err.message}`, true);
     } finally {
       document.getElementById('exerciseLoading').style.display = 'none';
       document.getElementById('exerciseAnalyzeBtn').disabled = false;
