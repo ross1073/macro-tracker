@@ -485,7 +485,7 @@ Numbers only. Protein/fat/carbs/sugar/fiber in grams. Cholesterol in mg. Water i
         method:'POST',
         headers:{'Content-Type':'application/json'},
         body: JSON.stringify({
-          model:'claude-sonnet-5', max_tokens:1000,
+          max_tokens:1000,  // model is chosen server-side (see netlify/functions/analyze.mjs)
           thinking:{ type:'disabled' },
           system: SYSTEM,
           tools: [{ type:'web_search_20260209', name:'web_search', max_uses: 3 }],
@@ -617,7 +617,7 @@ Numbers only. Duration in minutes (integer). Calories integer. Notes optional, 1
         method:'POST',
         headers:{'Content-Type':'application/json'},
         body: JSON.stringify({
-          model:'claude-sonnet-5', max_tokens:400,
+          max_tokens:400,  // model is chosen server-side (see netlify/functions/analyze.mjs)
           thinking:{ type:'disabled' },
           system: EXERCISE_SYSTEM,
           messages: exerciseHistory
