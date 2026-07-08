@@ -6,12 +6,11 @@
 // retirement with no code change. Refresh this list every year or two as models
 // ship/retire — keep entries to current-generation models that accept the same
 // request shape the frontend sends (thinking disabled + web_search_20260209).
-//
-// VERIFICATION BUILD: the retired claude-sonnet-4-20250514 is intentionally
-// first here to prove the fallback fires end-to-end. The next commit drops it.
+// Override without a code change by setting ANALYZE_MODELS in Netlify env
+// (comma-separated, highest priority first).
 const MODELS = process.env.ANALYZE_MODELS
   ? process.env.ANALYZE_MODELS.split(",").map((s) => s.trim()).filter(Boolean)
-  : ["claude-sonnet-4-20250514", "claude-sonnet-5", "claude-opus-4-8"];
+  : ["claude-sonnet-5", "claude-opus-4-8"];
 
 export default async (req) => {
   if (req.method === "OPTIONS") {
