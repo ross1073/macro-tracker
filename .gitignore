@@ -1,2 +1,5 @@
 # Local Netlify folder
 .netlify
+
+# Hook runtime logs (machine-generated)
+.claude/hooks/*.log
