@@ -473,6 +473,45 @@ Numbers only. Protein/fat/carbs/sugar/fiber in grams. Cholesterol in mg. Water i
     await callClaude();
   }
 
+  // Netlify serves an HTML error page (not JSON) when a function times out, so a
+  // bare res.json() throws a JSON syntax error that hides the real status.
+  async function readAnalyzeResponse(res) {
+    const body = await res.text();
+    let data;
+    try {
+      data = JSON.parse(body);
+    } catch {
+      throw new Error(res.status === 504
+        ? 'Server timed out (504) — the nutrition lookup ran too long. Try again, or simplify the description.'
+        : `Server error (${res.status})`);
+    }
+    if (!res.ok || data.error || !data.content) {
+      throw new Error(data?.error?.message || data?.error || `API error (${res.status})`);
+    }
+    return data;
+  }
+
+  // Despite the system prompt, the model often prefaces the JSON with prose, and web
+  // search can split the reply across several text blocks. Scan them newest-first and
+  // pull the JSON object out, rather than assuming a block is pure JSON.
+  function extractJson(data) {
+    const texts = data.content.filter(b => b.type === 'text').map(b => b.text);
+    if (!texts.length) throw new Error('No text response');
+    for (let i = texts.length - 1; i >= 0; i--) {
+      const cleaned = texts[i].replace(/```json|```/g, '').trim();
+      const start = cleaned.indexOf('{');
+      const end = cleaned.lastIndexOf('}');
+      if (start === -1 || end <= start) continue;
+      try {
+        return JSON.parse(cleaned.slice(start, end + 1));
+      } catch { /* not this block — keep looking */ }
+    }
+    // Nothing parsed. A max_tokens stop means the JSON was truncated mid-object.
+    throw new Error(data.stop_reason === 'max_tokens'
+      ? 'Response was cut off — try a shorter description.'
+      : 'Could not read the response — try again.');
+  }
+
   async function callClaude() {
     document.getElementById('analyzeBtn').disabled = true;
     document.getElementById('loading').style.display = 'block';
@@ -485,22 +524,16 @@ Numbers only. Protein/fat/carbs/sugar/fiber in grams. Cholesterol in mg. Water i
         method:'POST',
         headers:{'Content-Type':'application/json'},
         body: JSON.stringify({
-          max_tokens:1000,  // model is chosen server-side (see netlify/functions/analyze.mjs)
+          max_tokens:1500,  // model is chosen server-side (see netlify/functions/analyze.mjs)
           thinking:{ type:'disabled' },
           system: SYSTEM,
-          tools: [{ type:'web_search_20260209', name:'web_search', max_uses: 3 }],
+          // Each search costs seconds; more than one risks Netlify's function timeout.
+          tools: [{ type:'web_search_20260209', name:'web_search', max_uses: 1 }],
           messages: conversationHistory
         })
       });
-      const data = await res.json();
-      if (!res.ok || data.error || !data.content) {
-        throw new Error(data?.error?.message || data?.error || `API error (${res.status})`);
-      }
-      // With web search, the final text block may not be content[0]
-      const textBlock = data.content.filter(b => b.type === 'text').pop();
-      if (!textBlock) throw new Error('No text response');
-      const raw = textBlock.text.replace(/```json|```/g,'').trim();
-      const parsed = JSON.parse(raw);
+      const data = await readAnalyzeResponse(res);
+      const parsed = extractJson(data);
 
       if (parsed.status === 'clarify') {
         document.getElementById('clarifyQuestion').textContent = parsed.question;
@@ -623,14 +656,8 @@ Numbers only. Duration in minutes (integer). Calories integer. Notes optional, 1
           messages: exerciseHistory
         })
       });
-      const data = await res.json();
-      if (!res.ok || data.error || !data.content) {
-        throw new Error(data?.error?.message || data?.error || `API error (${res.status})`);
-      }
-      const textBlock = data.content.filter(b => b.type === 'text').pop();
-      if (!textBlock) throw new Error('No text response');
-      const raw = textBlock.text.replace(/```json|```/g,'').trim();
-      const parsed = JSON.parse(raw);
+      const data = await readAnalyzeResponse(res);
+      const parsed = extractJson(data);
 
       if (parsed.status === 'clarify') {
         // Simple inline prompt — reuse clarify box UX via a quick window.prompt to keep it small.
